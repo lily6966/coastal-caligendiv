@@ -1,0 +1,51 @@
+Using device: mps
+Global: 19163 records, 1108 species
+California: 557 records, 31 species
+
+============================================================
+PHASE 1: Global pre-training
+============================================================
+  WithinSpecies: 941 species groups
+  CrossSpecies: 111 taxonomic groups
+  WithinSpecies: 167 species groups
+
+Parameters: 254,584
+  Epoch   1: loss=0.1356  val_RMSE=0.2041  R²=0.3299  σ=0.1315  95%CI=0.823
+  Epoch   5: loss=-0.0167  val_RMSE=0.1504  R²=0.5348  σ=0.1115  95%CI=0.868
+  Epoch  10: loss=-0.3521  val_RMSE=0.1877  R²=0.2425  σ=0.1332  95%CI=0.844
+  Epoch  15: loss=-0.5207  val_RMSE=0.1699  R²=0.3375  σ=0.0980  95%CI=0.729
+  Epoch  20: loss=-0.8156  val_RMSE=0.1306  R²=0.6151  σ=0.1082  95%CI=0.881
+  Epoch  25: loss=-0.8576  val_RMSE=0.1321  R²=0.5986  σ=0.0888  95%CI=0.827
+  Epoch  30: loss=-0.7700  val_RMSE=0.1554  R²=0.5072  σ=0.0964  95%CI=0.793
+  Epoch  35: loss=-0.9871  val_RMSE=0.1562  R²=0.5697  σ=0.0805  95%CI=0.723
+  Epoch  40: loss=-1.0881  val_RMSE=0.1156  R²=0.7068  σ=0.0741  95%CI=0.795
+  Epoch  45: loss=-1.2270  val_RMSE=0.1209  R²=0.6722  σ=0.0616  95%CI=0.714
+  Epoch  50: loss=-1.2697  val_RMSE=0.1366  R²=0.6960  σ=0.0709  95%CI=0.715
+  Early stopping at epoch 53
+
+  Best global: RMSE=0.1083, R²=0.7597, σ=0.0766, coverage=0.819
+
+============================================================
+PHASE 2: California fine-tuning (He + π)
+============================================================
+  WithinSpecies: 10 species groups
+
+  Zero-shot: RMSE=0.3021, R²=0.2867, σ=0.0316, coverage=0.613
+  WithinSpecies: 21 species groups
+  MixedContext: 21 CA species, 371 global families available
+  Epoch   1: loss=23.5990  test_RMSE=0.1711  R²=0.7750  σ=0.0528  coverage=0.331
+  Epoch   5: loss=-0.9537  test_RMSE=0.0860  R²=0.9184  σ=0.0232  coverage=0.229
+  Epoch  10: loss=-1.8944  test_RMSE=0.0808  R²=0.8980  σ=0.0228  coverage=0.697
+  Epoch  15: loss=-0.0617  test_RMSE=0.0926  R²=0.8949  σ=0.0274  coverage=0.624
+  Epoch  20: loss=-2.2573  test_RMSE=0.1206  R²=0.8731  σ=0.0261  coverage=0.563
+  Early stopping at epoch 24
+
+  Fine-tuned: RMSE=0.0653, R²=0.9599, σ=0.0327, coverage=0.827
+
+  Per metric-type:
+  WithinSpecies: 4 species groups
+    He: n_species=4, RMSE=0.1216, R²=0.8170, σ=0.0780
+  WithinSpecies: 6 species groups
+    pi: n_species=6, RMSE=0.0173, R²=-0.0684, σ=0.0046
+
+Saved to /Users/liyingnceas/Library/CloudStorage/Box-Box/Genomics/models/

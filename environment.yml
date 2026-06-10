@@ -1,0 +1,21 @@
+name: genom
+channels:
+  - conda-forge
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy>=2.4
+  - pandas>=3.0
+  - scipy>=1.17
+  - scikit-learn>=1.8
+  - matplotlib>=3.10
+  - geopandas>=1.1
+  - pyproj>=3.7
+  - contextily>=1.7
+  - rasterio>=1.5
+  - requests>=2.34
+  - openpyxl>=3.1
+  - pip
+  - pip:
+    - torch>=2.12

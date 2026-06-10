@@ -1,0 +1,45 @@
+Using device: mps
+Global: 19163 records, 1108 species
+California: 557 records, 31 species
+
+============================================================
+PHASE 1: Global pre-training
+============================================================
+  WithinSpecies: 941 species groups
+  CrossSpecies: 111 taxonomic groups
+  WithinSpecies: 167 species groups
+
+Parameters: 254,584
+  Epoch   1: loss=0.7896  val_RMSE=0.2426  R²=-0.0335  σ=0.2054  95%CI=0.901
+  Epoch   5: loss=-0.0808  val_RMSE=0.2170  R²=0.2350  σ=0.1573  95%CI=0.830
+  Epoch  10: loss=0.1446  val_RMSE=0.2042  R²=0.1239  σ=0.1101  95%CI=0.777
+  Epoch  15: loss=-0.3445  val_RMSE=0.2074  R²=0.2558  σ=0.0830  95%CI=0.545
+  Epoch  20: loss=-0.1105  val_RMSE=0.1544  R²=0.6006  σ=0.1138  95%CI=0.905
+  Early stopping at epoch 22
+
+  Best global: RMSE=0.1598, R²=0.5493, σ=0.1215, coverage=0.848
+
+============================================================
+PHASE 2: California fine-tuning (He + π)
+============================================================
+  WithinSpecies: 10 species groups
+
+  Zero-shot: RMSE=0.3219, R²=0.1543, σ=0.1028, coverage=0.293
+  WithinSpecies: 21 species groups
+  MixedContext: 21 CA species, 371 global families available
+  Epoch   1: loss=-0.1943  test_RMSE=0.1989  R²=0.5268  σ=0.0396  coverage=0.192
+  Epoch   5: loss=-0.6342  test_RMSE=0.1848  R²=0.5444  σ=0.0528  coverage=0.728
+  Epoch  10: loss=-1.4621  test_RMSE=0.2771  R²=0.3477  σ=0.0602  coverage=0.617
+  Epoch  15: loss=-0.4310  test_RMSE=0.2490  R²=0.3849  σ=0.0437  coverage=0.471
+  Epoch  20: loss=-1.7852  test_RMSE=0.1784  R²=0.5351  σ=0.0421  coverage=0.477
+  Epoch  25: loss=-2.2395  test_RMSE=0.2181  R²=0.4577  σ=0.0421  coverage=0.623
+
+  Fine-tuned: RMSE=0.1997, R²=0.5616, σ=0.0507, coverage=0.549
+
+  Per metric-type:
+  WithinSpecies: 4 species groups
+    He: n_species=4, RMSE=0.3929, R²=-1.2183, σ=0.1236
+  WithinSpecies: 6 species groups
+    pi: n_species=6, RMSE=0.0239, R²=-0.7367, σ=0.0083
+
+Saved to /Users/liyingnceas/Library/CloudStorage/Box-Box/Genomics/models/
