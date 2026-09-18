@@ -1,0 +1,56 @@
+=== 06c future diversity (LULC model) ===
+Using device: mps
+Records: 5725, species: 16
+
+Fetching future marine grid (Bio-ORACLE SSP5-8.5, avg 2080+2090)...
+    Fetching Bio-ORACLE @ 2080-01-01T00:00:00Z...
+    Fetching Bio-ORACLE @ 2090-01-01T00:00:00Z...
+Building future environment ensemble (5 GCMs)...
+  CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records
+
+Predicting under future climate:
+  Emerita analoga                  0.0038 → 0.0033 (-0.0005)
+  NLCD 2021: 1 points, 5 km radius
+  Eucyclogobius newberryi          0.3174 → 0.3752 (+0.0579)
+  Kelletia kelletii                0.5704 → 0.5472 (-0.0232)
+  Lottia austrodigitalis           0.0011 → 0.0005 (-0.0006)
+  Lottia gigantea                  0.3166 → 0.3117 (-0.0048)
+  NLCD 2021: 1 points, 5 km radius
+  Lottia scabra                    0.0012 → 0.0015 (+0.0003)
+  Macrocystis pyrifera             0.6524 → 0.5992 (-0.0532)
+  Neotrypaea californiensis        0.0168 → 0.0270 (+0.0102)
+  Nucella emarginata               0.0003 → 0.0005 (+0.0002)
+  Panulirus interruptus            0.8751 → 0.8709 (-0.0042)
+  NLCD 2021: 1 points, 5 km radius
+  Pelvetiopsis limitata            0.2579 → 0.2299 (-0.0280)
+  NLCD 2021: 1 points, 5 km radius
+  Pollicipes polymerus             0.0080 → 0.0086 (+0.0005)
+  Silvetia compressa               0.0006 → 0.0005 (-0.0001)
+  Tetraclita rubescens             0.0047 → 0.0044 (-0.0003)
+  Zostera marina                   0.5226 → 0.5352 (+0.0125)
+  Zostera pacifica                 0.3452 → 0.3295 (-0.0157)
+
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/data/processed/future_diversity.csv
+  diversity_norm (cross-species): current 0.2654 → future 0.2733 (+0.0079)
+=== 10 global-context figure ===
+================================================================
+GLOBAL CONTEXT FIGURE ON CHANGE-BASED EXPOSURE
+================================================================
+  global populations: 19163
+  raw global He: median 0.614, quadrant divider at He = 0.469
+  He species in figure: 8
+
+  saved: figures/div_vs_exposure_He_combined.pdf + .png
+
+  California He species (exposure, raw He now → 2100):
+    Eucyclogobius newberryi        exp=0.531  He 0.317 → 0.375 (+0.058)
+    Kelletia kelletii              exp=0.470  He 0.570 → 0.547 (-0.023)
+    Lottia gigantea                exp=0.511  He 0.317 → 0.312 (-0.005)
+    Macrocystis pyrifera           exp=0.496  He 0.652 → 0.599 (-0.053)
+    Panulirus interruptus          exp=0.470  He 0.875 → 0.871 (-0.004)
+    Pelvetiopsis limitata          exp=0.546  He 0.258 → 0.230 (-0.028)
+    Zostera marina                 exp=0.509  He 0.523 → 0.535 (+0.013)
+    Zostera pacifica               exp=0.470  He 0.345 → 0.329 (-0.016)
+
+  global mean exposure 0.556 vs California He species 0.508
+=== FUTURE CHAIN COMPLETE ===

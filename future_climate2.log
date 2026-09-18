@@ -1,0 +1,104 @@
+Using device: mps
+============================================================
+MULTI-MODEL ENSEMBLE FUTURE CLIMATE ASSESSMENT
+GCMs: BCC-CSM2-MR, CanESM5, CNRM-CM6-1, IPSL-CM6A-LR, MIROC6
+Terrestrial: WorldClim SSP5-8.5 2081-2100
+Marine: Bio-ORACLE SSP5-8.5 avg(2080-01-01T00:00:00Z, 2090-01-01T00:00:00Z)
+============================================================
+
+── Downloading WorldClim future rasters ──
+  BCC-CSM2-MR: already downloaded
+  CanESM5: already downloaded
+  CNRM-CM6-1: already downloaded
+  IPSL-CM6A-LR: already downloaded
+  MIROC6: already downloaded
+
+Loaded current results: 5725 records, 16 species
+
+── Fetching future marine data (Bio-ORACLE, avg 2080+2090) ──
+    Fetching Bio-ORACLE @ 2080-01-01T00:00:00Z...
+    Fetching Bio-ORACLE @ 2090-01-01T00:00:00Z...
+  Marine averages (2080+2090):
+    sst_mean: 16.8201
+    sst_max: 23.4166
+    sst_range: 10.8988
+    ph_mean: 7.6829
+    o2_mean: 243.9472
+
+── Computing Δ-climate exposure per GCM ──
+
+  Processing BCC-CSM2-MR...
+    Mean Δ-exposure: 0.4749, range: [0.3882, 0.5546]
+
+  Processing CanESM5...
+    Mean Δ-exposure: 0.5559, range: [0.4604, 0.6542]
+
+  Processing CNRM-CM6-1...
+    Mean Δ-exposure: 0.5221, range: [0.4147, 0.6228]
+
+  Processing IPSL-CM6A-LR...
+    Mean Δ-exposure: 0.5139, range: [0.4072, 0.6073]
+
+  Processing MIROC6...
+    Mean Δ-exposure: 0.4843, range: [0.3896, 0.5576]
+
+── Ensemble statistics ──
+  Ensemble mean exposure: 0.5102
+  Inter-model SD (mean):  0.0297
+  Inter-model range:      0.0840
+    BCC-CSM2-MR         : mean=0.4749
+    CanESM5             : mean=0.5559
+    CNRM-CM6-1          : mean=0.5221
+    IPSL-CM6A-LR        : mean=0.5139
+    MIROC6              : mean=0.4843
+
+── Predicting genetic diversity under future climate ──
+  CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records
+  Emerita analoga: current He/pi=0.0038 → future=0.0033 (-0.0005)
+  NLCD 2021: 1 points, 5 km radius
+  Eucyclogobius newberryi: current He/pi=0.3174 → future=0.3752 (+0.0579)
+  Kelletia kelletii: current He/pi=0.5704 → future=0.5472 (-0.0232)
+  Lottia austrodigitalis: current He/pi=0.0011 → future=0.0005 (-0.0006)
+  Lottia gigantea: current He/pi=0.3166 → future=0.3117 (-0.0048)
+  NLCD 2021: 1 points, 5 km radius
+  Lottia scabra: current He/pi=0.0012 → future=0.0015 (+0.0003)
+  Macrocystis pyrifera: current He/pi=0.6524 → future=0.5992 (-0.0532)
+  Neotrypaea californiensis: current He/pi=0.0168 → future=0.0270 (+0.0102)
+  Nucella emarginata: current He/pi=0.0003 → future=0.0005 (+0.0002)
+  Panulirus interruptus: current He/pi=0.8751 → future=0.8709 (-0.0042)
+  NLCD 2021: 1 points, 5 km radius
+  Pelvetiopsis limitata: current He/pi=0.2579 → future=0.2299 (-0.0280)
+  NLCD 2021: 1 points, 5 km radius
+  Pollicipes polymerus: current He/pi=0.0080 → future=0.0086 (+0.0005)
+  Silvetia compressa: current He/pi=0.0006 → future=0.0005 (-0.0001)
+  Tetraclita rubescens: current He/pi=0.0047 → future=0.0044 (-0.0003)
+  Zostera marina: current He/pi=0.5226 → future=0.5352 (+0.0125)
+  Zostera pacifica: current He/pi=0.3452 → future=0.3295 (-0.0157)
+
+  Future diversity (norm): mean=0.2733 (current=0.2654)
+
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/data/processed/vulnerability_scores_future.csv
+
+============================================================
+CURRENT vs FUTURE (ENSEMBLE) COMPARISON
+============================================================
+  Step 5 ensemble exposure: 0.5102
+  Future ensemble mean:   0.5102 ± 0.0297
+  Exposure change:        +0.0000
+  Current mean diversity: 0.2654
+  Future mean diversity:  0.2733
+  Diversity change:       +0.0079
+
+  Resilience classification:
+    Resilient                : current= 38.4%  future= 13.0%  change=-25.4%
+    At Risk                  : current= 10.8%  future=  9.7%  change=-1.1%
+    Latent Vulnerability     : current= 37.5%  future= 24.3%  change=-13.2%
+    Critical                 : current= 13.3%  future= 53.0%  change=+39.7%
+
+Generating figures...
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/ecosystem_resilience_future.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/div_vs_exposure_future.png
+
+============================================================
+DONE — Multi-model ensemble complete
+============================================================

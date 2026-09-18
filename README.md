@@ -12,7 +12,16 @@ Genomics/
 ├── 03_train_model.py               # Train CNP: Phase 1 global pre-training, Phase 2 CA fine-tuning
 ├── 04_predict_california.py        # Generate coastal predictions for each California species
 ├── 05_resilience_assessment.py     # Compute vulnerability scores, classify resilience, produce maps
-├── 06_global_diversity_map.py      # Global diversity predictions and leave-one-out validation
+├── 06_future_climate.py            # Future (SSP5-8.5) exposure and diversity, 5-GCM ensemble
+├── 06b_gcm_comparison_figure.py    # Per-GCM comparison figure
+├── 07_future_diversity_map.py      # Maps of projected end-of-century diversity
+├── 06c_future_diversity.py         # CNP-projected end-of-century diversity columns
+├── 06d_future_perGCM.py            # Per-GCM future vulnerability/resilience + model-agreement figure
+├── 11_gcm_ensemble_diversity.py    # Per-GCM 1 km future diversity ensemble (historical vs future)
+├── 08_exposure_diagnostics.py      # Per-component view of the change signal + climate velocity
+├── 10_global_delta_context_figure.py  # California He species vs the global cloud
+├── climate_delta.py                # THE definition of exposure: projected climate CHANGE
+├── archive/                        # Superseded parallel delta scripts and figures
 ├── environment.yml                 # Conda environment specification
 │
 ├── data/
@@ -41,6 +50,8 @@ Genomics/
     ├── obs_vs_pred.png             #   Model validation: observed vs predicted
     ├── calibration.png             #   Uncertainty calibration
     ├── global_diversity_*.png      #   Global diversity predictions and validation
+    ├── resilience_agreement_perGCM.png         # Present-day per-GCM resilience + model agreement
+    ├── future_diversity_perGCM_uncertainty.png # Projected 2100 diversity + between-GCM uncertainty
     └── ...
 ```
 
@@ -100,17 +111,81 @@ Generates a 150-point coastal grid (30.5 N to 42 N) and predicts genetic diversi
 
 ```bash
 python 05_resilience_assessment.py
+python 06c_future_diversity.py     # writes the joint present-future diversity scale
+python 05_resilience_assessment.py # rerun so both slices share that scale
 ```
 
-Computes per-species climate exposure (70% marine-weighted, 30% terrestrial), vulnerability scores, and resilience classification (resilient, at-risk, latent vulnerability, critical). Generates resilience maps, diversity maps, species vulnerability rankings, and ecosystem-level assessment figures.
+Computes per-species climate exposure, vulnerability scores, and resilience classification (resilient, at-risk, latent vulnerability, critical). Generates resilience maps, diversity maps, species vulnerability rankings, and ecosystem-level assessment figures.
 
-### Step 6: Global diversity analysis (optional)
+**Exposure is the projected CHANGE in climate parameters**, not their absolute value in any single time slice — see `climate_delta.py`, which is the one place the definition lives:
+
+| Domain | Weight | Component |
+|---|---|---|
+| Marine (63%) | 0.10 / 0.10 | Δ mean SST, Δ max SST |
+| | 0.08 | \|Δ SST annual range\| |
+| | 0.15 | acidification (pH decline) |
+| | 0.12 | deoxygenation (O₂ decline) |
+| | 0.08 | thermal novelty (Δ SST / baseline SST range) |
+| Terrestrial (30%) | 0.10 / 0.08 | Δ bio5, Δ bio1 |
+| | 0.06 | \|Δ bio4\| |
+| | 0.06 | relative drying of bio14 |
+
+Baselines: WorldClim 1970–2000 → CMIP6 SSP5-8.5 2081–2100 per GCM (terrestrial); Bio-ORACLE SSP5-8.5 2020 → avg(2080, 2090) (marine — the 2020 step of the same product as the scenario, so the change carries no model-vs-observation bias). Each component is normalized against a fixed reference *change* range so scores are absolute rather than min–max within the sample. Exposure is evaluated per GCM, giving `climate_exposure` (ensemble mean), `climate_exposure_sd/min/max`, and per-GCM columns.
+
+The superseded state-based indices are still written as `climate_exposure_v1` and `climate_exposure_state` so the comparison figures can show what changed.
+
+**Diversity is normalized within each species** — min–max against that species' own predicted values, so a population scores as low-diversity relative to the rest of its species rather than against a pooled cross-species reference. The cross-species version is retained as `diversity_norm_global` for the comparison figures.
+
+The per-species scale spans **both time slices** (`data/processed/diversity_scaling.csv`, written by step 6c). This matters: a species' spatial spread along its coastal range is much narrower than the change it undergoes by 2100, so scaling on the present alone pushes every 2100 value off the scale — He species clip to 0, π species to 1. Taking min/max over present and future together keeps both spatial and temporal variation visible. Because of that dependency the intended order is **05 → 06c → 05**; on a first run, with no scaling file present, step 5 bootstraps from the present-day range and says so.
+
+### Step 6: Future climate (SSP5-8.5)
 
 ```bash
-python 06_global_diversity_map.py
+python 06_future_climate.py
 ```
 
-Leave-one-out cross-validation of global predictions across all species. Produces global observed/predicted diversity maps, gridded comparisons, and latitudinal gradient figures.
+Re-predicts genetic diversity under end-of-century conditions (WorldClim CMIP6 2081-2100 across 5 GCMs; Bio-ORACLE SSP5-8.5 average of the 2080 and 2090 steps) and re-scores exposure per GCM. Since exposure is the projected change, it is the same quantity as in step 5 — what differs between now and 2100 is the diversity term, so `vulnerability_future` = (1 − projected 2100 diversity) × exposure + 0.3σ.
+
+### Step 6c: Projected diversity columns
+
+```bash
+python 06c_future_diversity.py
+```
+
+Recomputes the CNP-projected end-of-century diversity into `data/processed/future_diversity.csv`, row-aligned with `vulnerability_scores.csv`, without overwriting any step 6 output. Step 6 also writes these columns itself; this script exists so downstream figures can get them without rerunning the whole of step 6.
+
+### Step 6d: Per-GCM resilience (present day) and projected diversity (future)
+
+```bash
+python 11_gcm_ensemble_diversity.py   # per-GCM 1 km future diversity ensemble (prerequisite)
+python 06d_future_perGCM.py
+```
+
+Carries the full 5-GCM ensemble through the analysis rather than collapsing to the ensemble mean first, and separates the two epochs by what is well-posed for each.
+
+**Vulnerability / resilience — present day only, quantified per GCM.** Exposure is defined as the projected climate *change* (present → SSP5-8.5 2081–2100), which is exactly the pressure a currently-existing population faces, and it varies by GCM — so present-day resilience carries genuine climate-model spread through that term. Each of the five GCMs is classified independently into resilience quadrants with the present-day rule (`classify_resilience`): within-species diversity normalization on the joint present∪future scale, and an LULC-augmented total stressor ((1−w)·Δ-climate exposure + w·land-use pressure, w = 0.25, LULC held at present). Per population we report the modal class, the fraction of GCMs backing it, and the per-model class probabilities. Outputs `figures/resilience_agreement_perGCM.{pdf,png}` (model-agreement map, per-latitude class probability, consensus-strength breakdown) and `data/processed/resilience_agreement_perGCM.csv` (`modal_class_perGCM`, `model_agreement`, `p_critical_perGCM`). The modal class is Resilient for 37.7% of populations, Latent Vulnerability for 36.9%, Critical for 14.0%, and At Risk for 11.4%; 90.3% of populations are classified unanimously across all five GCMs and 100% carry a ≥3/5 majority — present-day classification is robust to GCM choice because only the exposure term varies.
+
+**Future — projected diversity, not a vulnerability class.** A well-posed *future* vulnerability would need the climate change a population faces *from 2100 onward*, but CMIP6 runs end at 2100, so that forward exposure is undefined. The future is therefore reported as projected end-of-century genetic diversity with its between-GCM uncertainty, not as a resilience classification. Outputs `figures/future_diversity_perGCM_uncertainty.{pdf,png}` (ensemble-mean projected within-species diversity map with certainty encoded as opacity; present-vs-2100 diversity by latitude with an inter-GCM band; and a per-latitude between-GCM SD profile) and `data/processed/future_diversity_perGCM_uncertainty.csv`. Projected within-species diversity falls from a present mean of 0.453 to 0.404 by 2100 (change −0.049), with a mean between-GCM SD of 0.062. The intermediate table `data/processed/future_perGCM_diversity_exposure.csv` retains the per-GCM exposure and projected-diversity inputs (no vulnerability columns).
+
+### Step 8: Exposure diagnostics
+
+```bash
+python 08_exposure_diagnostics.py
+```
+
+Opens up the exposure definition component by component along the coastal grid, and adds along-shore climate velocity — the speed at which a present-day isotherm must travel up the coast to stay in the same conditions. Outputs `data/processed/climate_delta_grid.csv` and `figures/delta_climate_profiles.{png,pdf}`.
+
+### Step 10: Global-context figure
+
+```bash
+python 10_global_delta_context_figure.py
+```
+
+Places the California He species inside the global cloud of 19,163 populations on the same exposure axis, scoring the global populations with `climate_delta.compute_climate_exposure` (terrestrial change from the local CMIP6 rasters; marine change from Bio-ORACLE on a 1-degree global stride, native resolution inside the California box). Because exposure is a fixed per-site quantity, the current → future arrow in panel (d) is vertical: what moves is projected diversity, not exposure. Outputs `figures/div_vs_exposure_He_combined.{pdf,png}` and `data/processed/global_exposure.csv`.
+
+### Archived
+
+`archive/` holds the earlier scripts and figures that computed the change-based exposure as a *parallel* index alongside the state-based one (`08_delta_exposure_vulnerability.py`, `09_delta_figures.py`, and their `*_delta` outputs). That duplication is gone: exposure is now defined once, in `climate_delta.py`, and the main pipeline figures carry it.
 
 ## Data sources
 

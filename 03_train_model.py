@@ -70,6 +70,29 @@ METRIC_EMBED_DIM = 8
 SPECIES_EMBED_DIM = 16
 REPR_DIM = 128
 
+# Per-metric target link function. He is modelled on its natural (identity)
+# scale with a Normal likelihood; pi is modelled as log(pi + eps) so the
+# predictive distribution back-transforms to a strictly-positive lognormal —
+# its credible intervals can never dip below zero (pi is non-negative).
+TARGET_TRANSFORM = {"He": "identity", "pi": "log"}
+PI_LOG_EPS = 1e-4
+
+# California species must have MORE than this many populations to be included
+# in fine-tuning and downstream prediction/resilience analysis.
+MIN_CA_OBS = 10
+
+
+def filter_ca_species(df, min_obs=MIN_CA_OBS, verbose=True):
+    """Keep only California species with more than `min_obs` observations."""
+    counts = df["species"].value_counts()
+    keep = counts[counts > min_obs].index
+    filtered = df[df["species"].isin(keep)].copy()
+    if verbose:
+        print(f"  CA species filter (>{min_obs} obs): "
+              f"{df['species'].nunique()} -> {filtered['species'].nunique()} species, "
+              f"{len(df)} -> {len(filtered)} records")
+    return filtered
+
 
 # ─────────────────────────────────────────────────────────
 # Data preparation
@@ -81,12 +104,72 @@ class FeatureProcessor:
         self.metric_encoder = LabelEncoder()
         self.species_encoder = LabelEncoder()
         self.cat_cardinalities = {}
+        # Per-metric target standardization: {metric_type: (mean, std)}.
+        # He and pi live on very different scales (~0.5 vs ~0.006); z-scoring
+        # each metric puts targets on a common scale so the shared decoder and
+        # the loss are not dominated by He, and pi context labels stay visible.
+        self.metric_target_stats = {}
 
     def fit_transform(self, df, fit=True):
         return self._process(df, fit=fit)
 
     def transform(self, df):
         return self._process(df, fit=False)
+
+    def fit(self, global_df, cali_df):
+        """Clean meta-transfer fit that scopes each preprocessing step separately:
+
+          - numeric scaler: fit on the GLOBAL pre-training data only, then applied
+            unchanged to California (so the pre-trained feature space is not
+            normalized with knowledge of the downstream domain);
+          - He target statistics: from the global data (identity link);
+          - pi target statistics: from California (the global data contain no pi);
+          - categorical / species / metric vocabularies: from the COMBINED labels,
+            purely so California taxa and categories have embedding indices before
+            fine-tuning (vocabulary definition, not signal learning).
+
+        California-specific LULC scaling is handled later by LulcProcessor.
+        """
+        combined = pd.concat([global_df, cali_df], ignore_index=True)
+
+        # Numeric scaler — GLOBAL ONLY
+        g = global_df.copy()
+        for col in NUMERIC_FEATURES:
+            if col not in g.columns:
+                g[col] = 0.0
+        self.scaler.fit(g[NUMERIC_FEATURES].fillna(0.0))
+
+        # Vocabularies — combined labels
+        self.label_encoders = {}
+        self.cat_cardinalities = {}
+        for col in CATEGORICAL_FEATURES:
+            vals = (combined[col] if col in combined.columns
+                    else pd.Series(["unknown"])).fillna("unknown").astype(str)
+            le = LabelEncoder()
+            le.fit(list(pd.unique(vals)) + ["unknown"])
+            self.label_encoders[col] = le
+            self.cat_cardinalities[col] = len(le.classes_)
+        self.metric_encoder.fit(["He", "pi"])
+        species = combined["species"].fillna("unknown").astype(str)
+        self.species_encoder.fit(list(pd.unique(species)) + ["unknown"])
+
+        # Per-metric target stats — He from global, pi from California
+        self.metric_target_stats = {}
+        for mt, src in (("He", global_df), ("pi", cali_df)):
+            if "metric_type" in src.columns:
+                raw = pd.to_numeric(
+                    src.loc[src["metric_type"].fillna("He") == mt, "gen_div"],
+                    errors="coerce").values
+            else:
+                raw = np.array([])
+            raw = raw[~np.isnan(raw)]
+            if len(raw) >= 2:
+                t = self._fwd_transform(raw, np.array([mt] * len(raw)))
+                self.metric_target_stats[mt] = (
+                    (float(t.mean()), float(t.std())) if t.std() > 1e-8 else (0.0, 1.0))
+            else:
+                self.metric_target_stats[mt] = (0.0, 1.0)
+        return self
 
     def _process(self, df, fit=True):
         result = {}
@@ -133,8 +216,81 @@ class FeatureProcessor:
             self.species_encoder.transform(species) + 1
         ).astype(np.int64)
 
-        result["target"] = df["gen_div"].values.astype(np.float32)
+        # Per-metric link transform + standardization. He: identity; pi: log.
+        # FiLM still conditions on metric, capturing residual variance/interaction
+        # structure beyond the mean/scale removed here.
+        raw_target = df["gen_div"].values.astype(np.float64)
+        mt_str = df["metric_type"].fillna("He").astype(str).values
+        transformed = self._fwd_transform(raw_target, mt_str)
+        if fit:
+            self.metric_target_stats = {}
+            for mt in np.unique(mt_str):
+                vals = transformed[mt_str == mt]
+                vals = vals[~np.isnan(vals)]
+                if len(vals) >= 2 and vals.std() > 1e-8:
+                    self.metric_target_stats[mt] = (float(vals.mean()), float(vals.std()))
+                else:
+                    self.metric_target_stats[mt] = (0.0, 1.0)
+        means = np.array([self.metric_target_stats.get(m, (0.0, 1.0))[0] for m in mt_str])
+        stds = np.array([self.metric_target_stats.get(m, (0.0, 1.0))[1] for m in mt_str])
+        result["target"] = ((transformed - means) / stds).astype(np.float32)
         return result
+
+    @staticmethod
+    def _fwd_transform(raw, mt_str):
+        """Apply the per-metric link (identity for He, log(pi+eps) for pi)."""
+        raw = np.asarray(raw, dtype=np.float64)
+        mt_str = np.broadcast_to(np.asarray(mt_str).astype(str), raw.shape)
+        out = raw.copy()
+        for mt in np.unique(mt_str):
+            if TARGET_TRANSFORM.get(mt, "identity") == "log":
+                sel = mt_str == mt
+                out[sel] = np.log(np.clip(raw[sel], 0.0, None) + PI_LOG_EPS)
+        return out
+
+    def _stats_arrays(self, mt):
+        means = np.array([self.metric_target_stats.get(m, (0.0, 1.0))[0] for m in mt.ravel()])
+        stds = np.array([self.metric_target_stats.get(m, (0.0, 1.0))[1] for m in mt.ravel()])
+        return means, stds
+
+    def inverse_target(self, y_std, metric_type):
+        """Standardized model output -> raw diversity units (lognormal median for pi)."""
+        y_std = np.asarray(y_std, dtype=np.float64)
+        mt = np.broadcast_to(np.asarray(metric_type).astype(str), y_std.shape)
+        means, stds = self._stats_arrays(mt)
+        transformed = y_std.ravel() * stds + means
+        out = transformed.copy()
+        mtr = mt.ravel()
+        for m in np.unique(mtr):
+            if TARGET_TRANSFORM.get(m, "identity") == "log":
+                sel = mtr == m
+                out[sel] = np.clip(np.exp(transformed[sel]) - PI_LOG_EPS, 0.0, None)
+        return out.reshape(y_std.shape)
+
+    def inverse_bounds(self, mu_std, sigma_std, metric_type, k):
+        """Raw-unit (lo, hi) credible bounds at +/- k sigma, computed in transformed
+        space then inverse-linked so pi bounds stay strictly positive/asymmetric."""
+        lo = self.inverse_target(np.asarray(mu_std) - k * np.asarray(sigma_std), metric_type)
+        hi = self.inverse_target(np.asarray(mu_std) + k * np.asarray(sigma_std), metric_type)
+        return lo, hi
+
+    def inverse_sigma(self, sigma_std, metric_type, mu_std=0.0):
+        """Approximate symmetric raw-unit sigma (delta method) for legacy callers.
+        Intervals should use inverse_bounds; this is only a local scale estimate."""
+        sigma_std = np.asarray(sigma_std, dtype=np.float64)
+        mt = np.broadcast_to(np.asarray(metric_type).astype(str), sigma_std.shape)
+        means, stds = self._stats_arrays(mt)
+        raw_sd = sigma_std.ravel() * stds
+        mu_std_arr = np.broadcast_to(np.asarray(mu_std, dtype=np.float64), sigma_std.shape).ravel()
+        out = raw_sd.copy()
+        mtr = mt.ravel()
+        for m in np.unique(mtr):
+            if TARGET_TRANSFORM.get(m, "identity") == "log":
+                sel = mtr == m
+                mean, std = self.metric_target_stats.get(m, (0.0, 1.0))
+                median = np.exp(mu_std_arr[sel] * std + mean)  # d(pi)/d(tau) = pi+eps
+                out[sel] = median * raw_sd[sel]
+        return out.reshape(sigma_std.shape)
 
     @property
     def n_species(self):
@@ -163,7 +319,9 @@ class WithinSpeciesCNPDataset:
                 "species_id": feats["species_id"],
                 "target": feats["target"],
                 "n": len(gdf),
-                "mean_div": feats["target"].mean(),
+                # Raw (unstandardized) mean, so the pseudo-pi threshold below
+                # keeps its original meaning after target standardization.
+                "mean_div": float(gdf["gen_div"].mean()),
             })
 
         print(f"  WithinSpecies: {len(self.groups)} species groups")
@@ -509,6 +667,9 @@ def main():
     global_df = pd.read_csv(global_path)
     cali_df = pd.read_csv(cali_path)
 
+    # Restrict California to species with more than MIN_CA_OBS populations
+    cali_df = filter_ca_species(cali_df)
+
     # Ensure categorical columns exist
     for col in CATEGORICAL_FEATURES:
         if col not in cali_df.columns:
@@ -519,10 +680,10 @@ def main():
     print(f"Global: {len(global_df)} records, {global_df['species'].nunique()} species")
     print(f"California: {len(cali_df)} records, {cali_df['species'].nunique()} species")
 
-    # Fit processor on combined data
-    combined = pd.concat([global_df, cali_df], ignore_index=True)
+    # Fit processor: numeric scaler + He target stats on GLOBAL only, vocab on
+    # combined, pi target stats on California (avoids preprocessing leakage).
     processor = FeatureProcessor()
-    processor.fit_transform(combined, fit=True)
+    processor.fit(global_df, cali_df)
 
     # ════════════════════════════════════════════════
     # PHASE 1: Global pre-training
@@ -531,7 +692,7 @@ def main():
     print("PHASE 1: Global pre-training")
     print("=" * 60)
 
-    species_list = global_df["species"].unique()
+    species_list = np.asarray(global_df["species"].unique())
     train_sp, val_sp = train_test_split(species_list, test_size=0.15, random_state=42)
     global_train = global_df[global_df["species"].isin(train_sp)]
     global_val = global_df[global_df["species"].isin(val_sp)]
@@ -595,7 +756,7 @@ def main():
     print("PHASE 2: California fine-tuning (He + π)")
     print("=" * 60)
 
-    cali_species = cali_df["species"].unique()
+    cali_species = np.asarray(cali_df["species"].unique())
     cali_train_sp, cali_test_sp = train_test_split(
         cali_species, test_size=0.3, random_state=42
     )

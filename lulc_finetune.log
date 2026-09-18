@@ -1,0 +1,49 @@
+Using device: mps
+==============================================================
+PHASE 2 RE-RUN: California fine-tuning with land use
+==============================================================
+  CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records
+California: 461 records, 16 species
+  with NLCD coverage: 453
+Extra covariates: lulc_pressure, developed_frac, crop_frac, land_frac, lulc_known
+
+Started from cnp_california_finetuned.pt, encoder widened 23 -> 28 numeric inputs
+  WithinSpecies: 16 species groups
+  MixedContext: 16 CA species, 371 global families available
+
+Fine-tuning 80 epochs x 100 episodes
+  epoch   1: loss=0.6753  RMSE=0.5075  R²=0.7594
+  epoch  10: loss=0.1579  RMSE=0.3968  R²=0.8381
+  epoch  20: loss=0.0657  RMSE=0.3558  R²=0.8789
+  epoch  30: loss=0.0369  RMSE=0.3147  R²=0.8920
+  epoch  40: loss=-0.3017  RMSE=0.2876  R²=0.9210
+  epoch  50: loss=-0.4305  RMSE=0.2519  R²=0.9299
+  epoch  60: loss=-0.6055  RMSE=0.2911  R²=0.9134
+  epoch  70: loss=-0.4790  RMSE=0.2183  R²=0.9437
+  epoch  80: loss=-0.5057  RMSE=0.2492  R²=0.9335
+
+Saved: models/cnp_california_lulc.pt, models/feature_processor_lulc.pkl
+
+Leave-one-out, within-species skill:
+
+  species                      n  r baseline   r +LULC
+  Emerita analoga             38       -0.07      0.66
+  Eucyclogobius newberryi     66        0.18      0.94
+  Kelletia kelletii           24       -0.03      0.75
+  Lottia austrodigitalis      24       -0.12      0.86
+  Lottia gigantea             15        0.48      0.96
+  Lottia scabra               29        0.53      0.75
+  Macrocystis pyrifera        60        0.38      0.93
+  Neotrypaea californiensis   20        0.37      0.69
+  Nucella emarginata          16       -0.04      0.81
+  Panulirus interruptus       14       -0.55      0.96
+  Pelvetiopsis limitata       11       -0.28      0.89
+  Pollicipes polymerus        29       -0.19      0.72
+  Silvetia compressa          21        0.29      0.77
+  Tetraclita rubescens        27       -0.04      0.79
+  Zostera marina              56        0.78      0.86
+  Zostera pacifica            11        0.02      0.62
+
+  baseline: within-species predicted variance = 13% of observed, median r = -0.00
+
+  with_lulc: within-species predicted variance = 75% of observed, median r = +0.80

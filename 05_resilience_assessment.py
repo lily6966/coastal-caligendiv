@@ -2,8 +2,24 @@
 """
 Step 5: Climate change resilience assessment.
 
-Combines CNP-predicted genetic diversity with climate exposure indicators
-to identify vulnerable populations and species.
+Combines CNP-predicted genetic diversity with climate exposure to identify
+vulnerable populations and species.
+
+Exposure is the projected CHANGE in climate parameters between the historical
+baseline and SSP5-8.5 end of century (see climate_delta.py), computed per GCM and
+ensembled — not the absolute value of those parameters in a single time slice.
+The superseded state-based indices are still recorded as climate_exposure_v1 and
+climate_exposure_state for the comparison figures.
+
+Vulnerability combines that climate change signal with coastal land-use pressure
+from NLCD 2021 (30 m), weighted LULC_WEIGHT; land use is not climate, so it stays
+its own term. Points outside NLCD coverage (south of the border) fall back to a
+climate-only stressor and are flagged by lulc_available.
+
+Predictions are raw He / pi throughout. The vulnerability score normalizes
+diversity against a CROSS-SPECIES reference (global 2nd-98th percentile He, CA
+2nd-98th percentile pi). Within-species min-max is retained as
+diversity_norm_within for plotting only — see the note in main().
 
 Outputs:
   data/processed/vulnerability_scores.csv
@@ -37,6 +53,8 @@ CATEGORICAL_FEATURES = _m.CATEGORICAL_FEATURES
 REPR_DIM = _m.REPR_DIM
 
 _p = __import__("04_predict_california")
+import climate_delta
+import land_use
 load_model_and_processor = _p.load_model_and_processor
 prepare_context = _p.prepare_context
 predict_at_locations = _p.predict_at_locations
@@ -95,8 +113,12 @@ def norm01_abs(series, col_name):
     return ((series - lo) / (hi - lo)).clip(0, 1)
 
 
-def compute_climate_exposure(df):
-    """REVISED exposure index (v2).
+def compute_climate_exposure_state(df):
+    """SUPERSEDED state-based index (v2) — kept only for comparison figures.
+
+    Scores the absolute value of climate variables in a single time slice, so a
+    site ranks high because it is already warm. Exposure is now defined as the
+    projected CHANGE in those parameters instead; see climate_delta.py.
 
     Separates marine and terrestrial stressors.
     Uses global reference ranges for absolute normalization.
@@ -172,6 +194,19 @@ def compute_climate_exposure(df):
     return exposure_index
 
 
+# ── The pipeline's definition of exposure ──
+# Exposure = normalized magnitude of the projected CHANGE in climate parameters
+# between the historical baseline and SSP5-8.5 end of century (climate_delta.py),
+# NOT the absolute value of those parameters in any single scenario slice.
+compute_climate_exposure = climate_delta.compute_climate_exposure
+GCMS = climate_delta.GCMS
+
+# Weight of coastal land-use pressure (NLCD 2021, 30 m) in the combined stressor.
+# Land use is not climate, so it is kept as its own term rather than folded into
+# the climate index; points outside NLCD coverage fall back to climate only.
+LULC_WEIGHT = 0.25
+
+
 def classify_resilience(diversity_norm, exposure, sigma_norm):
     """Classify populations into resilience quadrants.
 
@@ -202,8 +237,9 @@ def classify_resilience(diversity_norm, exposure, sigma_norm):
 
 def main():
     model, processor = load_model_and_processor()
-    cali_df = pd.read_csv(PROC / "california_env.csv")
-    coast_lats, coast_lons = make_coastal_grid(n_points=150)
+    cali_df = pd.read_csv(PROC / _p.CALI_FILE)
+    cali_df = _m.filter_ca_species(cali_df)
+    coast_lats, coast_lons = make_coastal_grid()
 
     species_info = cali_df.groupby("species").agg(
         metric_type=("metric_type", "first"),
@@ -245,9 +281,11 @@ def main():
         target_df = make_target_df(sp_lats, sp_lons, sp, mt, cali_df)
         mu, sigma = predict_at_locations(model, context, target_df, processor)
 
-        # Climate exposure at each point — both versions
+        # Exposure at each point: the change-based index, plus the two
+        # superseded state-based indices for the comparison figures
         exposure_v1 = compute_climate_exposure_v1(target_df)
-        exposure_v2 = compute_climate_exposure(target_df)
+        exposure_state = compute_climate_exposure_state(target_df)
+        exposure_change = compute_climate_exposure(target_df)
 
         for i in range(len(sp_lats)):
             results.append({
@@ -258,7 +296,8 @@ def main():
                 "pred_mu": mu[i],
                 "pred_sigma": sigma[i],
                 "climate_exposure_v1": exposure_v1.iloc[i],
-                "climate_exposure": exposure_v2.iloc[i],
+                "climate_exposure_state": exposure_state.iloc[i],
+                "climate_exposure": exposure_change.iloc[i],
                 "n_obs": len(obs),
                 "is_expert": bool(obs["is_expert"].any()) if "is_expert" in obs.columns else False,
             })
@@ -267,6 +306,17 @@ def main():
               f"→ grid [{sp_lats[0]:.1f}, {sp_lats[-1]:.1f}] ({len(sp_lats)} pts)")
 
     results_df = pd.DataFrame(results)
+
+    # ── Inter-model spread of the change signal ──
+    print("Computing per-GCM exposure (climate change ensemble)...")
+    e_mean, e_sd, e_min, e_max, per_gcm = climate_delta.exposure_ensemble(results_df)
+    results_df["climate_exposure"] = e_mean
+    results_df["climate_exposure_sd"] = e_sd
+    results_df["climate_exposure_min"] = e_min
+    results_df["climate_exposure_max"] = e_max
+    for g, vals in per_gcm.items():
+        results_df[f"climate_exposure_{g}"] = vals
+    print(f"  ensemble mean {e_mean.mean():.4f}, inter-model sd {e_sd.mean():.4f}")
 
     # ── Load global data for reference ranges ──
     global_df = pd.read_csv(PROC / "global_train_env.csv", low_memory=False)
@@ -281,18 +331,63 @@ def main():
     print(f"  He global reference: [{HE_REF_LO:.4f}, {HE_REF_HI:.4f}]")
     print(f"  π California reference: [{PI_REF_LO:.6f}, {PI_REF_HI:.6f}]")
 
+    # ── Coastal land-use pressure (non-climate stressor) ──
+    print("Adding NLCD land-use pressure...")
+    lu = land_use.pressure_at(results_df["Latitude"].values,
+                              results_df["Longitude"].values)
+    for c in ["lulc_pressure", "natural_frac", "developed_frac", "crop_frac", "land_frac"]:
+        results_df[c] = lu[c].values
+    results_df["lulc_available"] = ~lu["outside_nlcd"].values & lu["lulc_pressure"].notna().values
+
+    have = results_df["lulc_available"].values
+    results_df["total_stress"] = results_df["climate_exposure"]
+    results_df.loc[have, "total_stress"] = (
+        (1 - LULC_WEIGHT) * results_df.loc[have, "climate_exposure"]
+        + LULC_WEIGHT * results_df.loc[have, "lulc_pressure"]
+    )
+    print(f"  land-use pressure available for {have.sum()}/{len(results_df)} predictions "
+          f"(mean {results_df.loc[have, 'lulc_pressure'].mean():.3f})")
+    print(f"  combined stressor: {results_df['total_stress'].mean():.4f} "
+          f"vs climate alone {results_df['climate_exposure'].mean():.4f}")
+
     # ── Compute vulnerability scores ──
     print("Computing vulnerability scores...")
 
-    # --- Within-species normalization (old approach, kept as _ws) ---
+    # --- Within-species normalization: FOR PLOTTING ONLY ---
+    # diversity_norm_within rescales each species onto its own 0-1 range. It is a
+    # display transform, not the score: leave-one-out shows the model captures
+    # only 13% (He) and 1% (pi) of within-species variance, with a median
+    # within-species correlation of 0.01, so min-max stretching that component
+    # would amplify noise into apparent structure.
+    #
+    # The score below uses the cross-species reference instead, which rests on
+    # the between-species signal the model does resolve. Predictions themselves
+    # stay in raw He / pi units throughout (pred_mu).
+    # If 06c_future_diversity.py has already run, its scale spans present AND
+    # future predictions, so the two slices share one within-species axis. On a
+    # first pass that file does not exist yet and the present-day spatial range
+    # is used to bootstrap; rerun this step after 06c to settle on the joint scale.
+    scale_path = PROC / "diversity_scaling.csv"
+    joint = (pd.read_csv(scale_path).set_index("species")
+             if scale_path.exists() else None)
+    print("  diversity scale: " + ("present ∪ future (from 06c)" if joint is not None
+                                   else "present only (bootstrap — rerun after 06c)"))
+
+    scaling = []
     for sp in results_df["species"].unique():
         mask = results_df["species"] == sp
         vals = results_df.loc[mask, "pred_mu"]
-        mn, mx = vals.min(), vals.max()
-        if mx - mn > 1e-8:
-            results_df.loc[mask, "diversity_norm_ws"] = (vals - mn) / (mx - mn)
+        if joint is not None and sp in joint.index:
+            mn, mx = joint.loc[sp, "div_lo"], joint.loc[sp, "div_hi"]
         else:
-            results_df.loc[mask, "diversity_norm_ws"] = 0.5
+            mn, mx = vals.min(), vals.max()
+        if mx - mn > 1e-8:
+            results_df.loc[mask, "diversity_norm_within"] = ((vals - mn) / (mx - mn)).clip(0, 1)
+        else:
+            results_df.loc[mask, "diversity_norm_within"] = 0.5
+        scaling.append({"species": sp,
+                        "metric_type": results_df.loc[mask, "metric_type"].iloc[0],
+                        "div_lo": mn, "div_hi": mx})
 
         svals = results_df.loc[mask, "pred_sigma"]
         smn, smx = svals.min(), svals.max()
@@ -301,7 +396,11 @@ def main():
         else:
             results_df.loc[mask, "sigma_norm"] = 0.0
 
-    # --- Global-reference normalization (new approach) ---
+    if joint is None:
+        pd.DataFrame(scaling).to_csv(scale_path, index=False)
+        print(f"  saved bootstrap diversity scale: {scale_path}")
+
+    # --- Cross-species reference normalization, kept for comparison figures ---
     he_mask = results_df["metric_type"] == "He"
     pi_mask = results_df["metric_type"] == "pi"
     results_df.loc[he_mask, "diversity_norm"] = (
@@ -310,27 +409,44 @@ def main():
     results_df.loc[pi_mask, "diversity_norm"] = (
         (results_df.loc[pi_mask, "pred_mu"] - PI_REF_LO) / (PI_REF_HI - PI_REF_LO)
     ).clip(0, 1)
+    # aliases kept for older downstream code
+    results_df["diversity_norm_global"] = results_df["diversity_norm"]
+    results_df["diversity_norm_ws"] = results_df["diversity_norm_within"]
 
-    # Vulnerability score (uses v2 exposure + global-ref diversity)
+    # Vulnerability = (1 - within-species diversity) × combined stressor + 0.3σ,
+    # where the combined stressor is Δ-climate exposure plus land-use pressure.
     results_df["vulnerability"] = (
-        (1 - results_df["diversity_norm"]) * results_df["climate_exposure"]
+        (1 - results_df["diversity_norm_within"]) * results_df["total_stress"]
+        + 0.3 * results_df["sigma_norm"]
+    )
+    results_df["vulnerability_climate_only"] = (
+        (1 - results_df["diversity_norm_within"]) * results_df["climate_exposure"]
         + 0.3 * results_df["sigma_norm"]
     )
 
-    # Resilience classification
+    results_df["vulnerability_lo"] = (
+        (1 - results_df["diversity_norm_within"]) * results_df["climate_exposure_min"]
+        + 0.3 * results_df["sigma_norm"]
+    )
+    results_df["vulnerability_hi"] = (
+        (1 - results_df["diversity_norm_within"]) * results_df["climate_exposure_max"]
+        + 0.3 * results_df["sigma_norm"]
+    )
+
+    # Resilience classification (within-species diversity position)
     results_df["resilience_class"] = classify_resilience(
-        results_df["diversity_norm"].values,
-        results_df["climate_exposure"].values,
+        results_df["diversity_norm_within"].values,
+        results_df["total_stress"].values,
         results_df["sigma_norm"].values,
     )
 
-    # Also keep old vulnerability for comparison
+    # Superseded version for comparison: state exposure + cross-species diversity
     results_df["vulnerability_old"] = (
-        (1 - results_df["diversity_norm_ws"]) * results_df["climate_exposure_v1"]
+        (1 - results_df["diversity_norm_global"]) * results_df["climate_exposure_v1"]
         + 0.3 * results_df["sigma_norm"]
     )
     results_df["resilience_class_old"] = classify_resilience(
-        results_df["diversity_norm_ws"].values,
+        results_df["diversity_norm_global"].values,
         results_df["climate_exposure_v1"].values,
         results_df["sigma_norm"].values,
     )
@@ -340,7 +456,7 @@ def main():
 
     # ── Shared basemap setup ──
     import geopandas as gpd
-    import contextily as ctx
+    import ca_basemap as _cabm
     from matplotlib.lines import Line2D
     from matplotlib.gridspec import GridSpec
     from pyproj import Transformer
@@ -354,14 +470,8 @@ def main():
     top6 = species_info.nlargest(6, "n_pops")
 
     def _setup_ca_panel(ax):
-        """Set fixed California extent and add basemap."""
-        ax.set_xlim(ca_xmin, ca_xmax)
-        ax.set_ylim(ca_ymin, ca_ymax)
-        try:
-            ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron,
-                            zoom=7, alpha=0.6)
-        except Exception:
-            ax.set_facecolor("#f0f0f0")
+        """Set fixed California extent and draw the offline land basemap."""
+        _cabm.add_land(ax, ca_xmin, ca_xmax, ca_ymin, ca_ymax)
 
     # ── Figure 1: Resilience map with California basemap ──
     color_map = {
@@ -446,7 +556,8 @@ def main():
 
     fig.suptitle("Climate Change Resilience Classification Along California Coast",
                  fontsize=20, fontweight="bold")
-    plt.savefig(FIG_DIR / "resilience_map.png", dpi=200, bbox_inches="tight")
+    for _ext, _kw in (("pdf", {}), ("png", {"dpi": 160})):
+        plt.savefig(FIG_DIR / f"resilience_map.{_ext}", bbox_inches="tight", **_kw)
     plt.close()
     print(f"Saved: {FIG_DIR / 'resilience_map.png'}")
 
@@ -546,7 +657,8 @@ def main():
 
     fig.suptitle("Predicted Genetic Diversity Along California Coast",
                  fontsize=20, fontweight="bold")
-    plt.savefig(FIG_DIR / "diversity_map.png", dpi=200, bbox_inches="tight")
+    for _ext, _kw in (("pdf", {}), ("png", {"dpi": 160})):
+        plt.savefig(FIG_DIR / f"diversity_map.{_ext}", bbox_inches="tight", **_kw)
     plt.close()
     print(f"Saved: {FIG_DIR / 'diversity_map.png'}")
 
@@ -579,7 +691,8 @@ def main():
                  "(Green=Resilient, Yellow=At Risk, Orange=Vulnerable, Red=>50% Critical)")
     ax.grid(True, alpha=0.3, axis="x")
     plt.tight_layout()
-    plt.savefig(FIG_DIR / "species_vulnerability_ranking.png", dpi=150, bbox_inches="tight")
+    for _ext, _kw in (("pdf", {}), ("png", {"dpi": 160})):
+        plt.savefig(FIG_DIR / f"species_vulnerability_ranking.{_ext}", bbox_inches="tight", **_kw)
     plt.close()
     print(f"Saved: {FIG_DIR / 'species_vulnerability_ranking.png'}")
 
@@ -614,39 +727,40 @@ def main():
     fig, axes = plt.subplots(2, 4, figsize=(28, 14))
 
     # Row 1: He
-    _plot_quadrant(axes[0, 0], he_data, "climate_exposure_v1", "diversity_norm_ws",
+    _plot_quadrant(axes[0, 0], he_data, "climate_exposure_v1", "diversity_norm",
                    "He: OLD exposure + OLD diversity\n(local norm, no pH/O₂, within-species div)",
                    "Exposure V1 (local)", "He diversity (within-species)")
-    _plot_quadrant(axes[0, 1], he_data, "climate_exposure", "diversity_norm_ws",
-                   "He: NEW exposure + OLD diversity\n(marine-weighted, global ref, within-species div)",
-                   "Exposure V2 (marine-weighted)", "He diversity (within-species)")
-    _plot_quadrant(axes[0, 2], he_data, "climate_exposure_v1", "diversity_norm",
+    _plot_quadrant(axes[0, 1], he_data, "climate_exposure", "diversity_norm",
+                   "He: CHANGE exposure + within-species diversity\n(current definition)",
+                   "Δ-climate exposure (change)", "He diversity (within-species)")
+    _plot_quadrant(axes[0, 2], he_data, "climate_exposure_v1", "diversity_norm_global",
                    "He: OLD exposure + NEW diversity\n(local norm, global He reference)",
                    "Exposure V1 (local)", "He diversity (global ref)")
-    _plot_quadrant(axes[0, 3], he_data, "climate_exposure", "diversity_norm",
-                   "He: NEW exposure + NEW diversity\n(marine-weighted + global He reference)",
-                   "Exposure V2 (marine-weighted)", "He diversity (global ref)")
+    _plot_quadrant(axes[0, 3], he_data, "climate_exposure", "diversity_norm_global",
+                   "He: CHANGE exposure + cross-species diversity\n(Δ climate + global He reference)",
+                   "Δ-climate exposure (change)", "He diversity (global ref)")
 
     # Row 2: π
-    _plot_quadrant(axes[1, 0], pi_data, "climate_exposure_v1", "diversity_norm_ws",
+    _plot_quadrant(axes[1, 0], pi_data, "climate_exposure_v1", "diversity_norm",
                    "π: OLD exposure + OLD diversity\n(local norm, no pH/O₂, within-species div)",
                    "Exposure V1 (local)", "π diversity (within-species)")
-    _plot_quadrant(axes[1, 1], pi_data, "climate_exposure", "diversity_norm_ws",
-                   "π: NEW exposure + OLD diversity\n(marine-weighted, global ref, within-species div)",
-                   "Exposure V2 (marine-weighted)", "π diversity (within-species)")
-    _plot_quadrant(axes[1, 2], pi_data, "climate_exposure_v1", "diversity_norm",
+    _plot_quadrant(axes[1, 1], pi_data, "climate_exposure", "diversity_norm",
+                   "π: CHANGE exposure + within-species diversity\n(current definition)",
+                   "Δ-climate exposure (change)", "π diversity (within-species)")
+    _plot_quadrant(axes[1, 2], pi_data, "climate_exposure_v1", "diversity_norm_global",
                    "π: OLD exposure + NEW diversity\n(local norm, CA π reference)",
                    "Exposure V1 (local)", "π diversity (CA ref)")
-    _plot_quadrant(axes[1, 3], pi_data, "climate_exposure", "diversity_norm",
-                   "π: NEW exposure + NEW diversity\n(marine-weighted + CA π reference)",
-                   "Exposure V2 (marine-weighted)", "π diversity (CA ref)")
+    _plot_quadrant(axes[1, 3], pi_data, "climate_exposure", "diversity_norm_global",
+                   "π: CHANGE exposure + cross-species diversity\n(Δ climate + CA π reference)",
+                   "Δ-climate exposure (change)", "π diversity (CA ref)")
 
     plt.suptitle("Diversity vs Exposure: 4-Way Comparison\n"
-                 "Left→Right: improving exposure index | Top: He, Bottom: π\n"
+                 "Left→Right: state exposure → change-based exposure | Top: He, Bottom: π\n"
                  "Column 4 (rightmost) = final recommended approach",
                  fontsize=14, y=1.03)
     plt.tight_layout()
-    plt.savefig(FIG_DIR / "diversity_vs_exposure_comparison.png", dpi=150, bbox_inches="tight")
+    for _ext, _kw in (("pdf", {}), ("png", {"dpi": 160})):
+        plt.savefig(FIG_DIR / f"diversity_vs_exposure_comparison.{_ext}", bbox_inches="tight", **_kw)
     plt.close()
     print(f"Saved: {FIG_DIR / 'diversity_vs_exposure_comparison.png'}")
 
@@ -661,9 +775,9 @@ def main():
     new_pcts = [(results_df["resilience_class"] == c).mean() * 100 for c in classes]
     x = np.arange(len(classes))
     w = 0.35
-    bars1 = ax.bar(x - w/2, old_pcts, w, label="OLD (V1 exp + within-sp div)",
+    bars1 = ax.bar(x - w/2, old_pcts, w, label="OLD (state exposure + cross-species div)",
                     color=colors, alpha=0.5, edgecolor="black")
-    bars2 = ax.bar(x + w/2, new_pcts, w, label="NEW (V2 exp + global-ref div)",
+    bars2 = ax.bar(x + w/2, new_pcts, w, label="NEW (Δ-climate exposure + within-species div)",
                     color=colors, alpha=0.9, edgecolor="black")
     for bar, pct in zip(bars1, old_pcts):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
@@ -698,25 +812,27 @@ def main():
 
     # Panel C: Exposure V1 vs V2 scatter
     ax = axes[2]
-    ax.scatter(results_df["climate_exposure_v1"], results_df["climate_exposure"],
+    ax.scatter(results_df["climate_exposure_state"], results_df["climate_exposure"],
                c=results_df["Latitude"], cmap="coolwarm", s=5, alpha=0.3)
     ax.plot([0, 1], [0, 1], "k--", alpha=0.3)
-    ax.set_xlabel("V1 Exposure (old)")
-    ax.set_ylabel("V2 Exposure (new)")
-    ax.set_title("Exposure V1 vs V2\n(colored by latitude: blue=north, red=south)")
+    ax.set_xlabel("State exposure (absolute climate, superseded)")
+    ax.set_ylabel("Δ-climate exposure (projected change)")
+    ax.set_title("State vs change-based exposure\n(colored by latitude: blue=north, red=south)")
     cb = plt.colorbar(ax.collections[0], ax=ax, label="Latitude", shrink=0.8)
     ax.grid(True, alpha=0.3)
     ax.set_xlim([0, 1]); ax.set_ylim([0, 1])
 
-    plt.suptitle("Impact of Revised Exposure Index + Global Reference Normalization", fontsize=13)
+    plt.suptitle("Impact of Defining Exposure as Projected CHANGE + Global Reference Normalization",
+                 fontsize=13)
     plt.tight_layout()
-    plt.savefig(FIG_DIR / "old_vs_new_comparison.png", dpi=150, bbox_inches="tight")
+    for _ext, _kw in (("pdf", {}), ("png", {"dpi": 160})):
+        plt.savefig(FIG_DIR / f"old_vs_new_comparison.{_ext}", bbox_inches="tight", **_kw)
     plt.close()
     print(f"Saved: {FIG_DIR / 'old_vs_new_comparison.png'}")
 
     # ── Figure 3c: Exposure component breakdown ──
     # Uses full coast to show how components vary spatially
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    fig, axes = plt.subplots(1, 3, figsize=(22, 6))
     sample_sp = species_info.iloc[0]["species"]
     sample_mt = species_info.iloc[0]["metric_type"]
     full_target = make_target_df(coast_lats, coast_lons, sample_sp, sample_mt, cali_df)
@@ -745,37 +861,56 @@ def main():
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
 
-    # V2 components
+    # Change-based components, with per-component inter-GCM min–max bands.
+    # Marine components share one Bio-ORACLE SSP5-8.5 projection, so their band is
+    # zero-width; the terrestrial components (bio*) carry the GCM spread.
     ax = axes[1]
-    v2_comps = {}
-    v2_comps["temp_extreme (bio5)"] = norm01_abs(full_target["bio5"], "bio5")
-    v2_comps["temp_range (bio7)"] = norm01_abs(full_target["bio7"], "bio7")
-    v2_comps["seasonality (bio4)"] = norm01_abs(full_target["bio4"], "bio4")
-    if "sst_max" in full_target.columns:
-        v2_comps["SST max"] = norm01_abs(full_target["sst_max"].fillna(
-            full_target["sst_max"].median()), "sst_max")
-    if "sst_range" in full_target.columns:
-        v2_comps["SST range"] = norm01_abs(full_target["sst_range"].fillna(
-            full_target["sst_range"].median()), "sst_range")
-    if "ph_mean" in full_target.columns and full_target["ph_mean"].notna().any():
-        v2_comps["acidification (1-pH)"] = 1 - norm01_abs(full_target["ph_mean"].fillna(
-            full_target["ph_mean"].median()), "ph_mean")
-    if "o2_mean" in full_target.columns and full_target["o2_mean"].notna().any():
-        v2_comps["deoxygenation (1-O₂)"] = 1 - norm01_abs(full_target["o2_mean"].fillna(
-            full_target["o2_mean"].median()), "o2_mean")
-    for name, vals in v2_comps.items():
-        ax.plot(coast_lats, vals, label=name, alpha=0.7)
+    _, comp, _ = compute_climate_exposure(full_target, return_components=True)
+    per_gcm_comp = {g: compute_climate_exposure(full_target, gcm=g, return_components=True)[1]
+                    for g in climate_delta.GCMS}
+    labels = {
+        "d_sst_mean": "Δ SST mean", "d_sst_max": "Δ SST max",
+        "d_sst_range": "|Δ SST range|", "d_ph": "acidification (−Δ pH)",
+        "d_o2": "deoxygenation (−Δ O₂)", "sst_novelty": "thermal novelty",
+        "d_bio5": "Δ bio5", "d_bio1": "Δ bio1", "d_bio4": "|Δ bio4|",
+        "dry_bio14": "drying (bio14)",
+    }
+    for key, label in labels.items():
+        if key in comp.columns:
+            line, = ax.plot(coast_lats, comp[key], label=label, alpha=0.85, lw=1.3)
+            stack = np.column_stack([per_gcm_comp[g][key].values for g in climate_delta.GCMS])
+            ax.fill_between(coast_lats, stack.min(axis=1), stack.max(axis=1),
+                            color=line.get_color(), alpha=0.18)
     ax.plot(coast_lats, compute_climate_exposure(full_target),
-            "k-", linewidth=2.5, label="V2 composite", alpha=0.9)
+            "k-", linewidth=2.5, label="Δ-climate composite", alpha=0.9)
     ax.set_xlabel("Latitude")
-    ax.set_ylabel("Normalized stress (0–1)")
-    ax.set_title(f"V2 Components ({sample_sp})")
+    ax.set_ylabel("Normalized change (0–1)")
+    ax.set_title(f"Change-based components ({sample_sp})\n(shaded = inter-GCM min–max; marine shared)")
     ax.legend(fontsize=7, ncol=2)
     ax.grid(True, alpha=0.3)
 
-    plt.suptitle("Exposure Index Components: V1 vs V2 Along California Coast", fontsize=13)
+    # GCM variability of the Δ-climate composite exposure
+    ax = axes[2]
+    per_gcm = {g: climate_delta.compute_climate_exposure(full_target, gcm=g).values
+               for g in climate_delta.GCMS}
+    mat = np.column_stack([per_gcm[g] for g in climate_delta.GCMS])
+    ens = climate_delta.compute_climate_exposure(full_target).values
+    ax.fill_between(coast_lats, mat.min(axis=1), mat.max(axis=1),
+                    color="grey", alpha=0.25, label="GCM range (min–max)")
+    for g in climate_delta.GCMS:
+        ax.plot(coast_lats, per_gcm[g], lw=1.0, alpha=0.8, label=g)
+    ax.plot(coast_lats, ens, "k-", lw=2.6, label="Ensemble mean")
+    ax.set_xlabel("Latitude")
+    ax.set_ylabel("Δ-climate exposure (0–1)")
+    ax.set_title(f"GCM variability of Δ-exposure ({sample_sp})")
+    ax.legend(fontsize=7, ncol=2)
+    ax.grid(True, alpha=0.3)
+
+    plt.suptitle("Exposure Components Along the California Coast: "
+                 "superseded state index, projected change, and inter-GCM spread", fontsize=13)
     plt.tight_layout()
-    plt.savefig(FIG_DIR / "exposure_components.png", dpi=150, bbox_inches="tight")
+    for _ext, _kw in (("pdf", {}), ("png", {"dpi": 160})):
+        plt.savefig(FIG_DIR / f"exposure_components.{_ext}", bbox_inches="tight", **_kw)
     plt.close()
     print(f"Saved: {FIG_DIR / 'exposure_components.png'}")
 
@@ -822,14 +957,15 @@ def main():
 
     plt.suptitle("Global vs California Genetic Diversity Patterns", fontsize=13)
     plt.tight_layout()
-    plt.savefig(FIG_DIR / "global_vs_california.png", dpi=150, bbox_inches="tight")
+    for _ext, _kw in (("pdf", {}), ("png", {"dpi": 160})):
+        plt.savefig(FIG_DIR / f"global_vs_california.{_ext}", bbox_inches="tight", **_kw)
     plt.close()
     print(f"Saved: {FIG_DIR / 'global_vs_california.png'}")
 
     # ── Figure 5: Ecosystem-level resilience (all species aggregated) ──
     print("Generating ecosystem-level resilience map...")
     import geopandas as gpd
-    import contextily as ctx
+    import ca_basemap as _cabm
     from matplotlib.lines import Line2D
     from matplotlib.colors import LinearSegmentedColormap
     from pyproj import Transformer
@@ -862,6 +998,7 @@ def main():
             "lon_center": lon_center,
             "n_species": n_species,
             "mean_vulnerability": pts["vulnerability"].mean(),
+            "median_vulnerability": pts["vulnerability"].median(),
             "mean_diversity": pts["diversity_norm"].mean(),
             "mean_exposure": pts["climate_exposure"].mean(),
             "mean_uncertainty": pts["sigma_norm"].mean(),
@@ -889,14 +1026,7 @@ def main():
     ca_xmin, ca_ymin = transformer.transform(CA_LON_MIN, CA_LAT_MIN)
     ca_xmax, ca_ymax = transformer.transform(CA_LON_MAX, CA_LAT_MAX)
 
-    ax_map.set_xlim(ca_xmin, ca_xmax)
-    ax_map.set_ylim(ca_ymin, ca_ymax)
-
-    try:
-        ctx.add_basemap(ax_map, source=ctx.providers.CartoDB.Positron,
-                        zoom=7, alpha=0.5)
-    except Exception:
-        ax_map.set_facecolor("#f0f0f0")
+    _cabm.add_land(ax_map, ca_xmin, ca_xmax, ca_ymin, ca_ymax)
 
     # Color by mean vulnerability
     vuln_cmap = LinearSegmentedColormap.from_list(
@@ -913,13 +1043,13 @@ def main():
 
     sc = ax_map.scatter(
         eco_gdf.geometry.x, eco_gdf.geometry.y,
-        c=eco_df["mean_vulnerability"], cmap=vuln_cmap,
+        c=eco_df["median_vulnerability"], cmap=vuln_cmap,
         s=sizes, alpha=0.85,
         edgecolors="black", linewidth=0.4,
         vmin=0.1, vmax=0.7, zorder=3,
     )
     cb = plt.colorbar(sc, ax=ax_map, shrink=0.5, pad=0.02,
-                       label="Mean Vulnerability Score")
+                       label="Median Vulnerability Score")
     cb.ax.tick_params(labelsize=11)
     cb.set_label("Mean Vulnerability Score", fontsize=13)
 
@@ -1002,7 +1132,8 @@ def main():
         f"{results_df['species'].nunique()} species, {len(results_df)} predictions",
         fontsize=20, fontweight="bold", y=0.98,
     )
-    plt.savefig(FIG_DIR / "ecosystem_resilience.png", dpi=200, bbox_inches="tight")
+    for _ext, _kw in (("pdf", {}), ("png", {"dpi": 160})):
+        plt.savefig(FIG_DIR / f"ecosystem_resilience.{_ext}", bbox_inches="tight", **_kw)
     plt.close()
     print(f"Saved: {FIG_DIR / 'ecosystem_resilience.png'}")
 

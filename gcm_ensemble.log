@@ -1,0 +1,31 @@
+Using device: mps
+  CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records
+Fetching shared future marine (Bio-ORACLE SSP5-8.5, avg 2080+2090)...
+    Fetching Bio-ORACLE @ 2080-01-01T00:00:00Z...
+    Fetching Bio-ORACLE @ 2090-01-01T00:00:00Z...
+Sampling per-GCM future terrestrial climate (1 km)...
+Predicting future diversity per GCM:
+  Emerita analoga                  present 0.0038 -> future 0.0025
+  NLCD 2021: 1 points, 5 km radius
+  Eucyclogobius newberryi          present 0.3174 -> future 0.3896
+  Kelletia kelletii                present 0.5704 -> future 0.5590
+  Lottia austrodigitalis           present 0.0011 -> future 0.0009
+  Lottia gigantea                  present 0.3166 -> future 0.3020
+  NLCD 2021: 1 points, 5 km radius
+  Lottia scabra                    present 0.0012 -> future 0.0016
+  Macrocystis pyrifera             present 0.6524 -> future 0.6301
+  Neotrypaea californiensis        present 0.0168 -> future 0.0206
+  Nucella emarginata               present 0.0003 -> future 0.0002
+  Panulirus interruptus            present 0.8751 -> future 0.8515
+  NLCD 2021: 1 points, 5 km radius
+  Pelvetiopsis limitata            present 0.2579 -> future 0.2333
+  NLCD 2021: 1 points, 5 km radius
+  Pollicipes polymerus             present 0.0080 -> future 0.0076
+  Silvetia compressa               present 0.0006 -> future 0.0008
+  Tetraclita rubescens             present 0.0047 -> future 0.0040
+  Zostera marina                   present 0.5226 -> future 0.4311
+  Zostera pacifica                 present 0.3452 -> future 0.3922
+
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/data/processed/gcm_ensemble_diversity.csv
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/historical_vs_future_diversity.pdf
+  Community normalized diversity: 0.265 -> 0.263 ± 0.005 (between-GCM SD)

@@ -1,0 +1,18 @@
+Using device: mps
+  CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records
+Global: 19163 records, 1108 species
+California: 461 records, 16 species
+
+============================================================
+PHASE 1: Global pre-training
+============================================================
+  WithinSpecies: 941 species groups
+  CrossSpecies: 111 taxonomic groups
+  WithinSpecies: 167 species groups
+
+Parameters: 254,344
+  Epoch   1: loss=0.7265  val_RMSE=0.2086  R²=0.2663  σ=0.1828  95%CI=0.897
+  Epoch   5: loss=0.0708  val_RMSE=0.1761  R²=0.4460  σ=0.1452  95%CI=0.901
+  Epoch  10: loss=0.2485  val_RMSE=0.1533  R²=0.4598  σ=0.1514  95%CI=0.914
+  Epoch  15: loss=-0.4398  val_RMSE=0.1952  R²=0.3530  σ=0.1029  95%CI=0.678
+  Epoch  20: loss=-0.4233  val_RMSE=0.1789  R²=0.3175  σ=0.1122  95%CI=0.802

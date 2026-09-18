@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+# Bulk data lives in Box and is reached through these symlinks; see paths.py.
+data/data_raw
+data/env_rasters
+data/processed
+data/WorldClim_1km
+data/LULC_NLCD
+data/naturalearth
+
+# Pre-change figure snapshots; each has its own MANIFEST.txt.
+figures_archive/

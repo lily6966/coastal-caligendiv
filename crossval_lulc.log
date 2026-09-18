@@ -1,0 +1,37 @@
+Using device: mps
+  CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records
+Species: 16 (8 He, 8 pi) across 5 folds
+
+Fold 1/5: 12 train / 4 held-out species
+  WithinSpecies: 12 species groups
+  MixedContext: 12 CA species, 371 global families available
+  done (87 pooled preds so far)
+
+Fold 2/5: 12 train / 4 held-out species
+  WithinSpecies: 12 species groups
+  MixedContext: 12 CA species, 371 global families available
+  done (122 pooled preds so far)
+
+Fold 3/5: 12 train / 4 held-out species
+  WithinSpecies: 12 species groups
+  MixedContext: 12 CA species, 371 global families available
+  done (181 pooled preds so far)
+
+Fold 4/5: 14 train / 2 held-out species
+  WithinSpecies: 14 species groups
+  MixedContext: 14 CA species, 371 global families available
+  done (27 pooled preds so far)
+
+Fold 5/5: 14 train / 2 held-out species
+  WithinSpecies: 14 species groups
+  MixedContext: 14 CA species, 371 global families available
+  done (44 pooled preds so far)
+
+================================================================
+5-FOLD SPECIES-LEVEL CROSS-VALIDATION (raw units, exact intervals)
+================================================================
+  He : n_sp= 8 n_pops= 257  RMSE=0.12535  R2=0.644  r=0.813  cov95=0.335  cov68=0.183  CI<0=0%
+  pi : n_sp= 8 n_pops= 204  RMSE=0.00959  R2=0.177  r=0.574  cov95=0.480  cov68=0.255  CI<0=0%
+  all: n_sp=16 n_pops= 461  RMSE=0.09381  R2=0.898  r=0.950  cov95=0.399  cov68=0.215  CI<0=0%
+
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/data/processed/crossval_metrics.csv and /Users/liyingnceas/GitHub/coastal-caligendiv/data/processed/crossval_predictions.csv

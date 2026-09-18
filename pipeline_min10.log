@@ -1,0 +1,133 @@
+=== STEP 03 fine-tuning ===
+Using device: mps
+  CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records
+Global: 19163 records, 1108 species
+California: 461 records, 16 species
+
+============================================================
+PHASE 1: Global pre-training
+============================================================
+  WithinSpecies: 941 species groups
+  CrossSpecies: 111 taxonomic groups
+  WithinSpecies: 167 species groups
+
+Parameters: 254,344
+  Epoch   1: loss=0.3156  val_RMSE=0.1761  R²=0.2275  σ=0.1060  95%CI=0.763
+  Epoch   5: loss=0.0145  val_RMSE=0.1693  R²=0.4098  σ=0.1183  95%CI=0.816
+  Epoch  10: loss=-0.1039  val_RMSE=0.2242  R²=0.0971  σ=0.1247  95%CI=0.797
+  Epoch  15: loss=-0.3709  val_RMSE=0.2151  R²=-0.0245  σ=0.0951  95%CI=0.683
+  Epoch  20: loss=-0.5006  val_RMSE=0.1698  R²=0.3531  σ=0.0971  95%CI=0.764
+  Epoch  25: loss=-0.6038  val_RMSE=0.2010  R²=0.1403  σ=0.1082  95%CI=0.647
+  Early stopping at epoch 25
+
+  Best global: RMSE=0.1735, R²=0.4085, σ=0.1144, coverage=0.820
+
+============================================================
+PHASE 2: California fine-tuning (He + π)
+============================================================
+  WithinSpecies: 5 species groups
+
+  Zero-shot: RMSE=0.2377, R²=0.2437, σ=0.1506, coverage=0.576
+  WithinSpecies: 11 species groups
+  MixedContext: 11 CA species, 371 global families available
+  Epoch   1: loss=-0.8226  test_RMSE=0.2347  R²=0.2596  σ=0.0805  coverage=0.472
+  Epoch   5: loss=-0.9037  test_RMSE=0.1834  R²=0.5069  σ=0.0927  coverage=0.859
+  Epoch  10: loss=-0.2684  test_RMSE=0.1987  R²=0.5219  σ=0.0318  coverage=0.151
+  Epoch  15: loss=-1.7586  test_RMSE=0.2216  R²=0.4261  σ=0.0269  coverage=0.292
+  Epoch  20: loss=-1.8431  test_RMSE=0.1872  R²=0.3742  σ=0.0361  coverage=0.568
+  Epoch  25: loss=-1.2434  test_RMSE=0.2336  R²=0.3918  σ=0.0372  coverage=0.554
+  Epoch  30: loss=-1.7836  test_RMSE=0.2216  R²=0.2298  σ=0.0335  coverage=0.370
+  Early stopping at epoch 34
+
+  Fine-tuned: RMSE=0.1965, R²=0.3715, σ=0.0312, coverage=0.490
+
+  Per metric-type:
+  WithinSpecies: 3 species groups
+    He: n_species=3, RMSE=0.2685, R²=0.0134, σ=0.0419
+  WithinSpecies: 2 species groups
+    pi: n_species=2, RMSE=0.0039, R²=-1.3733, σ=0.0058
+
+Saved to /Users/liyingnceas/GitHub/coastal-caligendiv/models/
+=== STEP 04 predictions ===
+Using device: mps
+  CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/coastal_transects.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/obs_vs_pred.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/calibration.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/california_diversity_map.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/data/processed/predictions.csv (1350 predictions)
+=== STEP 05 resilience ===
+Using device: mps
+  CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records
+Generating predictions for all species...
+  Emerita analoga: lat [33.8, 39.0] → grid [32.4, 40.5] (106 pts)
+  Eucyclogobius newberryi: lat [33.2, 41.9] → grid [31.8, 42.0] (133 pts)
+  Kelletia kelletii: lat [32.7, 34.5] → grid [31.2, 36.0] (63 pts)
+  Lottia austrodigitalis: lat [30.5, 37.2] → grid [30.5, 38.7] (107 pts)
+  Lottia gigantea: lat [32.7, 38.6] → grid [31.2, 40.1] (116 pts)
+  Lottia scabra: lat [30.5, 41.7] → grid [30.5, 42.0] (150 pts)
+  Macrocystis pyrifera: lat [32.7, 37.0] → grid [31.2, 38.4] (95 pts)
+  Neotrypaea californiensis: lat [32.8, 38.3] → grid [31.3, 39.8] (111 pts)
+  Nucella emarginata: lat [33.2, 36.5] → grid [31.7, 38.0] (82 pts)
+  Panulirus interruptus: lat [32.8, 34.4] → grid [31.3, 35.8] (59 pts)
+  Pelvetiopsis limitata: lat [34.7, 41.7] → grid [33.3, 42.0] (114 pts)
+  Pollicipes polymerus: lat [30.5, 41.7] → grid [30.5, 42.0] (150 pts)
+  Silvetia compressa: lat [32.9, 38.3] → grid [31.4, 39.8] (109 pts)
+  Tetraclita rubescens: lat [30.5, 40.0] → grid [30.5, 41.5] (143 pts)
+  Zostera marina: lat [32.6, 38.3] → grid [31.2, 39.8] (112 pts)
+  Zostera pacifica: lat [32.7, 34.5] → grid [31.2, 35.9] (62 pts)
+  He global reference: [0.0610, 0.8770]
+  π California reference: [0.000000, 0.046364]
+Computing vulnerability scores...
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/data/processed/vulnerability_scores.csv (1712 records)
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/resilience_map.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/diversity_map.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/species_vulnerability_ranking.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/diversity_vs_exposure_comparison.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/old_vs_new_comparison.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/exposure_components.png
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/global_vs_california.png
+Generating ecosystem-level resilience map...
+  75 coastal segments, 16 species total
+Saved: /Users/liyingnceas/GitHub/coastal-caligendiv/figures/ecosystem_resilience.png
+
+  Ecosystem resilience by region:
+    Southern CA (29-34°N):
+      Mean vulnerability: 0.633
+      Mean species coverage: 12.4
+      % Critical: 78.3%
+      % Resilient: 0.0%
+    Central CA (34-37°N):
+      Mean vulnerability: 0.477
+      Mean species coverage: 15.0
+      % Critical: 22.2%
+      % Resilient: 16.2%
+    Northern CA (37-43°N):
+      Mean vulnerability: 0.344
+      Mean species coverage: 8.8
+      % Critical: 0.0%
+      % Resilient: 8.2%
+
+============================================================
+RESILIENCE ASSESSMENT SUMMARY
+============================================================
+
+Species assessed: 16
+Total predictions: 1712
+  Resilient: 8.8%
+  At Risk: 10.3%
+  Latent Vulnerability: 48.2%
+  Critical: 32.7%
+
+Most vulnerable species (>50% Critical predictions):
+  Panulirus interruptus (He): vulnerability=0.420, critical=74.6%
+  Zostera pacifica (He): vulnerability=0.452, critical=74.2%
+  Nucella emarginata (pi): vulnerability=0.603, critical=52.4%
+  Lottia austrodigitalis (pi): vulnerability=0.632, critical=53.3%
+
+Most resilient species (<10% Critical):
+  Macrocystis pyrifera (He): vulnerability=0.238
+  Eucyclogobius newberryi (He): vulnerability=0.298
+  Zostera marina (He): vulnerability=0.307
+  Kelletia kelletii (He): vulnerability=0.312
+=== PIPELINE COMPLETE ===
