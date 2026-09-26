@@ -25,7 +25,23 @@ import rasterio
 from rasterio.windows import from_bounds
 from pathlib import Path
 
-OUT = Path("/Users/liyingnceas/Library/CloudStorage/Box-Box/Genomics/data/WorldClim_1km")
+def _box_genomics_data():
+    """Locate Genomics/data under the Box mount without hardcoding the account folder.
+
+    Box renames the account folder when the display name changes. The previous
+    literal path was written before one such rename and silently went stale: the
+    callers below guard on .exists(), so instead of failing they fell back to
+    coarser data. Globbing survives a rename, and keeps the account folder name
+    -- which is an email address -- out of a public repository.
+    """
+    base = Path.home() / "Library" / "CloudStorage" / "Box-Box"
+    for p in sorted(base.glob("*/Genomics/data")):
+        if p.is_dir():
+            return p
+    return base / "Genomics" / "data"
+
+
+OUT = _box_genomics_data() / "WorldClim_1km"
 PRESENT_DIR = OUT / "present_1970-2000"       # historical baseline
 FUTURE_DIR = OUT / "ssp585_2081-2100"         # climate change scenario, per GCM
 for _d in (PRESENT_DIR, FUTURE_DIR):

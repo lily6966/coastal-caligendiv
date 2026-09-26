@@ -83,7 +83,23 @@ BIOS = [1, 4, 5, 14]
 # 1 km (30 arc-sec) WorldClim crops for the California window. Where they cover a
 # point they are used in place of the 10 arc-min global rasters, which stay in
 # service for everything outside the box (e.g. the global population cloud).
-FINE_DIR = Path("/Users/liyingnceas/Library/CloudStorage/Box-Box/Genomics/data/WorldClim_1km")
+def _box_genomics_data():
+    """Locate Genomics/data under the Box mount without hardcoding the account folder.
+
+    Box renames the account folder when the display name changes. The previous
+    literal path was written before one such rename and silently went stale: the
+    callers below guard on .exists(), so instead of failing they fell back to
+    coarser data. Globbing survives a rename, and keeps the account folder name
+    -- which is an email address -- out of a public repository.
+    """
+    base = Path.home() / "Library" / "CloudStorage" / "Box-Box"
+    for p in sorted(base.glob("*/Genomics/data")):
+        if p.is_dir():
+            return p
+    return base / "Genomics" / "data"
+
+
+FINE_DIR = _box_genomics_data() / "WorldClim_1km"
 FINE_PRESENT_DIR = FINE_DIR / "present_1970-2000"
 FINE_FUTURE_DIR = FINE_DIR / "ssp585_2081-2100"
 FINE_BANDS = [1, 4, 5, 6, 7, 12, 13, 14, 15]     # band order inside the crops

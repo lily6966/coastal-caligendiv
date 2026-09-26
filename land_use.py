@@ -43,7 +43,23 @@ PROC = ROOT / "data" / "processed"
 CACHE = PROC / "land_use_pressure.csv"
 
 # Fetched NLCD strips are kept here so the term is reproducible offline.
-RASTER_DIR = Path("/Users/liyingnceas/Library/CloudStorage/Box-Box/Genomics/data/LULC_NLCD")
+def _box_genomics_data():
+    """Locate Genomics/data under the Box mount without hardcoding the account folder.
+
+    Box renames the account folder when the display name changes. The previous
+    literal path was written before one such rename and silently went stale: the
+    callers below guard on .exists(), so instead of failing they fell back to
+    coarser data. Globbing survives a rename, and keeps the account folder name
+    -- which is an email address -- out of a public repository.
+    """
+    base = Path.home() / "Library" / "CloudStorage" / "Box-Box"
+    for p in sorted(base.glob("*/Genomics/data")):
+        if p.is_dir():
+            return p
+    return base / "Genomics" / "data"
+
+
+RASTER_DIR = _box_genomics_data() / "LULC_NLCD"
 RASTER_DIR.mkdir(parents=True, exist_ok=True)
 
 WCS = "https://www.mrlc.gov/geoserver/mrlc_display/wcs"
