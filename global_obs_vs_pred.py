@@ -14,7 +14,9 @@ ROOT = Path(__file__).parent
 import os
 # Figure output directory. $CNP_FIG_DIR redirects it, so a verification run
 # can regenerate every figure without overwriting the committed ones.
-PROC = ROOT / "data" / "processed"; MODEL_DIR = ROOT / "models"
+# Processed-data directory. $CNP_PROC_DIR redirects it, so a verification run
+# reads and writes inside a copy and cannot modify the real outputs.
+PROC = Path(os.environ.get("CNP_PROC_DIR") or (ROOT / "data" / "processed")); MODEL_DIR = ROOT / "models"
 FIG = Path(os.environ.get("CNP_FIG_DIR") or (ROOT / "figures"))
 sys.path.insert(0, str(ROOT))
 _m = __import__("03_train_model")

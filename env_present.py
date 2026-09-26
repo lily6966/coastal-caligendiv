@@ -29,7 +29,10 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 ROOT = Path(__file__).parent
-PROC = ROOT / "data" / "processed"
+import os
+# Processed-data directory. $CNP_PROC_DIR redirects it, so a verification run
+# reads and writes inside a copy and cannot modify the real outputs.
+PROC = Path(os.environ.get("CNP_PROC_DIR") or (ROOT / "data" / "processed"))
 
 import climate_delta as _cd
 
