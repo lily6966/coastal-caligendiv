@@ -41,7 +41,10 @@ warnings.filterwarnings("ignore")
 ROOT = Path(__file__).parent
 PROC = ROOT / "data" / "processed"
 MODEL_DIR = ROOT / "models"
-FIG_DIR = ROOT / "figures"
+import os
+# Figure output directory. $CNP_FIG_DIR redirects it, so a verification run
+# can regenerate every figure without overwriting the committed ones.
+FIG_DIR = Path(os.environ.get("CNP_FIG_DIR") or (ROOT / "figures"))
 FIG_DIR.mkdir(exist_ok=True)
 
 sys.path.insert(0, str(ROOT))

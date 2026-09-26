@@ -18,7 +18,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 PROC = ROOT / "data" / "processed"
-FIG = ROOT / "figures"
+import os
+# Figure output directory. $CNP_FIG_DIR redirects it, so a verification run
+# can regenerate every figure without overwriting the committed ones.
+FIG = Path(os.environ.get("CNP_FIG_DIR") or (ROOT / "figures"))
 GCMS = ["BCC-CSM2-MR", "CanESM5", "CNRM-CM6-1", "IPSL-CM6A-LR", "MIROC6"]
 
 df = pd.read_csv(PROC / "future_perGCM_diversity_exposure.csv")

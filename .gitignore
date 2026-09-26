@@ -12,3 +12,7 @@ data/naturalearth
 
 # Pre-change figure snapshots; each has its own MANIFEST.txt.
 figures_archive/
+
+# Output of verification runs; the committed figures stay in figures/.
+figures_testrun/
+csv_testrun/
