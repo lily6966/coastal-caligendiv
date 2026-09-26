@@ -12,7 +12,6 @@ The superseded state-based indices are still recorded as climate_exposure_v1 and
 climate_exposure_state for the comparison figures.
 
 Vulnerability combines that climate change signal with coastal land-use pressure
-import os
 from NLCD 2021 (30 m), weighted LULC_WEIGHT; land use is not climate, so it stays
 its own term. Points outside NLCD coverage (south of the border) fall back to a
 climate-only stressor and are flagged by lulc_available.
@@ -29,6 +28,7 @@ Outputs:
   figures/diversity_vs_exposure.png
   figures/global_vs_california.png
 """
+import os
 
 import pickle, sys, warnings
 import numpy as np
