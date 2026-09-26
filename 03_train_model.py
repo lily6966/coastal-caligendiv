@@ -19,6 +19,7 @@ Training:
     - Lower learning rates, dropout regularization
 """
 
+import os
 import os, pickle, warnings
 import numpy as np
 import pandas as pd

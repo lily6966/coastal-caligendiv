@@ -20,6 +20,7 @@ Outputs:
   figures/div_vs_exposure_future.pdf
 """
 
+import os
 import json, os, sys, warnings, zipfile, io
 import numpy as np
 import pandas as pd
@@ -33,7 +34,6 @@ ROOT = Path(__file__).parent
 # Processed-data directory. $CNP_PROC_DIR redirects it, so a verification run
 # reads and writes inside a copy and cannot modify the real outputs.
 PROC = Path(os.environ.get("CNP_PROC_DIR") or (ROOT / "data" / "processed"))
-import os
 # Figure output directory. $CNP_FIG_DIR redirects it, so a verification run
 # can regenerate every figure without overwriting the committed ones.
 FIG_DIR = Path(os.environ.get("CNP_FIG_DIR") or (ROOT / "figures"))

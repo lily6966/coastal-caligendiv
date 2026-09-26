@@ -28,6 +28,7 @@ NLCD classes: 11 water, 12 ice, 21-24 developed, 31 barren, 41-43 forest,
               51-52 shrub, 71-74 herbaceous, 81-82 hay/crops, 90/95 wetlands
 """
 
+import os
 import io, warnings
 from pathlib import Path
 
@@ -39,7 +40,6 @@ from rasterio.windows import from_bounds
 
 warnings.filterwarnings("ignore")
 ROOT = Path(__file__).parent
-import os
 # Processed-data directory. $CNP_PROC_DIR redirects it, so a verification run
 # reads and writes inside a copy and cannot modify the real outputs.
 PROC = Path(os.environ.get("CNP_PROC_DIR") or (ROOT / "data" / "processed"))

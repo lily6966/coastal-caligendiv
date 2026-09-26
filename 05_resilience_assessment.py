@@ -12,6 +12,7 @@ The superseded state-based indices are still recorded as climate_exposure_v1 and
 climate_exposure_state for the comparison figures.
 
 Vulnerability combines that climate change signal with coastal land-use pressure
+import os
 from NLCD 2021 (30 m), weighted LULC_WEIGHT; land use is not climate, so it stays
 its own term. Points outside NLCD coverage (south of the border) fall back to a
 climate-only stressor and are flagged by lulc_available.
@@ -43,7 +44,6 @@ ROOT = Path(__file__).parent
 # reads and writes inside a copy and cannot modify the real outputs.
 PROC = Path(os.environ.get("CNP_PROC_DIR") or (ROOT / "data" / "processed"))
 MODEL_DIR = ROOT / "models"
-import os
 # Figure output directory. $CNP_FIG_DIR redirects it, so a verification run
 # can regenerate every figure without overwriting the committed ones.
 FIG_DIR = Path(os.environ.get("CNP_FIG_DIR") or (ROOT / "figures"))

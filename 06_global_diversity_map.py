@@ -17,6 +17,7 @@ Outputs:
   figures/global_latitudinal_gradient.png  — Diversity vs latitude pattern
 """
 
+import os
 import pickle, sys, warnings
 import numpy as np
 import pandas as pd
@@ -31,7 +32,6 @@ ROOT = Path(__file__).parent
 # reads and writes inside a copy and cannot modify the real outputs.
 PROC = Path(os.environ.get("CNP_PROC_DIR") or (ROOT / "data" / "processed"))
 MODEL_DIR = ROOT / "models"
-import os
 # Figure output directory. $CNP_FIG_DIR redirects it, so a verification run
 # can regenerate every figure without overwriting the committed ones.
 FIG_DIR = Path(os.environ.get("CNP_FIG_DIR") or (ROOT / "figures"))

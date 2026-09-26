@@ -21,6 +21,7 @@ Species-level categorical features (Life_form, taxonomy, Marker_type, BIOME) are
 not spatial and still come from the species' own records.
 """
 
+import os
 import warnings
 from pathlib import Path
 
@@ -29,7 +30,6 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 ROOT = Path(__file__).parent
-import os
 # Processed-data directory. $CNP_PROC_DIR redirects it, so a verification run
 # reads and writes inside a copy and cannot modify the real outputs.
 PROC = Path(os.environ.get("CNP_PROC_DIR") or (ROOT / "data" / "processed"))

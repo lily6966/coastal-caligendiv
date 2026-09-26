@@ -24,6 +24,7 @@ Outputs:
   data/processed/loo_lulc_comparison.csv
 """
 
+import os
 import pickle, sys, warnings
 import numpy as np
 import pandas as pd
@@ -32,7 +33,6 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore")
 ROOT = Path(__file__).parent
-import os
 # Processed-data directory. $CNP_PROC_DIR redirects it, so a verification run
 # reads and writes inside a copy and cannot modify the real outputs.
 PROC = Path(os.environ.get("CNP_PROC_DIR") or (ROOT / "data" / "processed"))

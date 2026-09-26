@@ -15,6 +15,7 @@ along-coast composition.
 
 Output: figures/resilience_map_composition.{pdf,png}
 """
+import os
 import sys
 import numpy as np, pandas as pd, geopandas as gpd
 import matplotlib; matplotlib.use("Agg")
@@ -29,7 +30,6 @@ ROOT = Path(__file__).parent
 # Processed-data directory. $CNP_PROC_DIR redirects it, so a verification run
 # reads and writes inside a copy and cannot modify the real outputs.
 PROC = Path(os.environ.get("CNP_PROC_DIR") or (ROOT / "data" / "processed"))
-import os
 # Figure output directory. $CNP_FIG_DIR redirects it, so a verification run
 # can regenerate every figure without overwriting the committed ones.
 FIG = Path(os.environ.get("CNP_FIG_DIR") or (ROOT / "figures"))

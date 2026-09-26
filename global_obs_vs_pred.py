@@ -5,13 +5,13 @@ For each global species with >=4 populations, a random 70% forms the context and
 the held-out ~30% are predicted (pooled across species). Reports RMSE / R^2 in raw
 He units and saves figures/global_obs_vs_pred.{pdf,png}.
 """
+import os
 import sys, pickle
 import numpy as np, pandas as pd, torch
 import matplotlib.pyplot as plt
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-import os
 # Figure output directory. $CNP_FIG_DIR redirects it, so a verification run
 # can regenerate every figure without overwriting the committed ones.
 # Processed-data directory. $CNP_PROC_DIR redirects it, so a verification run
