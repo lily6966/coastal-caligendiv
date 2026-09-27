@@ -1,59 +1,12 @@
 # Genetic Diversity and Climate Change Resilience for California Coastal Species
 
-A meta-learning framework using Conditional Neural Processes (CNP) to predict genetic diversity and assess climate change resilience across 31 California coastal species.
+A meta-learning framework using Conditional Neural Processes (CNP) to predict genetic diversity and assess climate change resilience across California coastal species.
 
-## Project structure
-
-```
-Genomics/
-├── 01_prepare_data.py              # Compile genetic diversity records from GenDiv and CaliPopGen
-├── 02_add_env_covariates.py        # Extract WorldClim v2.1 bioclimatic variables
-├── 02b_add_marine_covariates.py    # Extract Bio-ORACLE v2.2 marine surface variables
-├── 03_train_model.py               # Train CNP: Phase 1 global pre-training, Phase 2 CA fine-tuning
-├── 04_predict_california.py        # Generate coastal predictions for each California species
-├── 05_resilience_assessment.py     # Compute vulnerability scores, classify resilience, produce maps
-├── 06_future_climate.py            # Future (SSP5-8.5) exposure and diversity, 5-GCM ensemble
-├── 06b_gcm_comparison_figure.py    # Per-GCM comparison figure
-├── 07_future_diversity_map.py      # Maps of projected end-of-century diversity
-├── 06c_future_diversity.py         # CNP-projected end-of-century diversity columns
-├── 06d_future_perGCM.py            # Per-GCM future vulnerability/resilience + model-agreement figure
-├── 11_gcm_ensemble_diversity.py    # Per-GCM 1 km future diversity ensemble (historical vs future)
-├── 08_exposure_diagnostics.py      # Per-component view of the change signal + climate velocity
-├── 10_global_delta_context_figure.py  # California He species vs the global cloud
-├── climate_delta.py                # THE definition of exposure: projected climate CHANGE
-├── archive/                        # Superseded parallel delta scripts and figures
-├── environment.yml                 # Conda environment specification
-│
-├── data/
-│   ├── data_raw/                   # Original source data (not tracked in version control)
-│   │   ├── GenDivRange/            #   Global genetic diversity database (spec_tab, pop_tab)
-│   │   ├── CaliPopGen/             #   California Population Genomics dataset
-│   │   └── single.gen.div.DF.xlsx  #   Curated California records with expert contributions
-│   ├── env_rasters/                # WorldClim v2.1 GeoTIFFs (wc2.1_10m_bio_*.tif)
-│   └── processed/                  # Pipeline outputs
-│       ├── global_train.csv        #   Cleaned global records (19,163 populations, 1,108 species)
-│       ├── california.csv          #   Cleaned California records (557 populations, 31 species)
-│       ├── *_env.csv               #   Records with environmental covariates appended
-│       ├── predictions.csv         #   Coastal grid predictions per species
-│       └── vulnerability_scores.csv#   Per-species vulnerability and resilience classification
-│
-├── models/
-│   ├── cnp_global_pretrained.pt    # Phase 1 model weights (global pre-training)
-│   ├── cnp_california_finetuned.pt # Phase 2 model weights (California fine-tuning)
-│   └── feature_processor.pkl       # Fitted StandardScaler and label encoders
-│
-└── figures/                        # Generated figures
-    ├── resilience_map.png          #   Species resilience classification maps
-    ├── diversity_map.png           #   Predicted genetic diversity maps
-    ├── ecosystem_resilience.png    #   Ecosystem-level vulnerability assessment
-    ├── species_vulnerability_ranking.png
-    ├── obs_vs_pred.png             #   Model validation: observed vs predicted
-    ├── calibration.png             #   Uncertainty calibration
-    ├── global_diversity_*.png      #   Global diversity predictions and validation
-    ├── resilience_agreement_perGCM.png         # Present-day per-GCM resilience + model agreement
-    ├── future_diversity_perGCM_uncertainty.png # Projected 2100 diversity + between-GCM uncertainty
-    └── ...
-```
+CaliPopGen contributes 557 populations across 31 species. `03_train_model.py` keeps only
+species with more than `MIN_CA_OBS = 10` populations, so **California fine-tuning and all
+reported metrics use 16 species / 461 populations** (8 He, 8 pi). Both numbers appear in the
+run logs as `CA species filter (>10 obs): 31 -> 16 species, 557 -> 461 records`; 31 is the
+raw count, 16 is what the model is trained and scored on.
 
 ## Reproducibility pipeline
 
@@ -84,10 +37,16 @@ python 02b_add_marine_covariates.py
 Extracts nine WorldClim v2.1 bioclimatic variables from GeoTIFFs at each population coordinate. Coastal locations outside the terrestrial land mask are gap-filled via nearest-neighbor interpolation. Derives three climate indices: normalized temperature seasonality, precipitation extremity, and composite climate stress. Then adds seven Bio-ORACLE v2.2 marine surface variables (SST, salinity, chlorophyll-a, dissolved oxygen, pH) and classifies populations as marine or terrestrial.
 
 **Required data:**
-- WorldClim v2.1 bioclimatic rasters (`data/env_rasters/wc2.1_10m_bio_*.tif`) — download from https://www.worldclim.org/data/worldclim21.html
+- WorldClim v2.1 bioclimatic rasters at 10 arc-minutes (`data/env_rasters/wc2.1_10m_bio_*.tif`)
+  — download from https://www.worldclim.org/data/worldclim21.html
+- WorldClim v2.1 at **30 arc-seconds (~1 km), cropped to California**
+  (`data/WorldClim_1km/present_1970-2000/wc2.1_30s_bio_*_CA.tif` and
+  `ssp585_2081-2100/`) — fetched by `download_worldclim_1km.py`. `climate_delta.sample_bio`
+  prefers these inside the California box and falls back to the 10 arc-minute rasters
+  elsewhere, so California climate is sampled at 1 km and the global set at 10 arc-minutes.
 - Bio-ORACLE v2.2 — fetched automatically via ERDDAP (requires internet)
 
-### Step 3: Train the Conditional Neural Process
+### Step 3: Train the Conditional Neural Process (climate only)
 
 ```bash
 python 03_train_model.py
@@ -97,7 +56,58 @@ Two-phase meta-transfer learning:
 - **Phase 1** — Global pre-training on 1,108 species (100 epochs, 300 episodes/epoch). Episode types: 70% within-species, 30% cross-species (same taxonomic order).
 - **Phase 2** — California fine-tuning on 31 coastal species (80 epochs, 100 episodes/epoch). Episode types: 50% within-species, 50% mixed-context (augmented with global records from the same taxonomic family).
 
-Saves model weights to `models/` and the fitted feature processor to `models/feature_processor.pkl`.
+Saves `models/cnp_global_pretrained.pt`, `models/cnp_california_finetuned.pt` and
+`models/feature_processor.pkl`. This is the **climate-only** model; step 3c adds land use and
+produces the variant the rest of the pipeline actually uses.
+
+### Step 3c: Add land use and re-run the California fine-tuning — **this is the model used downstream**
+
+```bash
+python 03c_finetune_lulc.py
+```
+
+Leave-one-out on the climate-only model showed it resolves species *means* but almost nothing
+*within* a species — 13% of within-species variance for He, 1% for pi, median within-species
+r = 0.01 — and gradient boosting on the same covariates tops out near R² = 0.05, so the limit is
+the covariates rather than the architecture. NLCD 2021 land-use pressure (30 m) correlates with
+within-species anomalies at median |r| = 0.26, an order of magnitude more.
+
+Phase 1 is untouched: NLCD is US-only and cannot be extracted at the 19,163 global populations.
+Instead the pre-trained encoder is **widened** — the land-use inputs enter through zero-initialised
+weights, so the model starts out computing exactly what the climate-only model did and can only
+improve by learning to use them — and only the California fine-tuning is re-run.
+
+Five-fold species-level cross-validation, climate-only against climate + land use
+(`logs/crossval.log` and `logs/crossval_lulc.log`):
+
+| | He RMSE | He R² | pi RMSE | pi R² |
+|---|---|---|---|---|
+| climate only | 0.13156 | 0.607 | 0.01027 | 0.055 |
+| **+ land use** | **0.12535** | **0.644** | **0.00959** | **0.177** |
+
+pi R² more than triples. That is why the land-use model is the one carried forward.
+
+**Outputs, and what everything downstream loads:**
+
+| | climate only | climate + land use |
+|---|---|---|
+| weights | `models/cnp_california_finetuned.pt` | `models/cnp_california_lulc.pt` |
+| processor | `models/feature_processor.pkl` | `models/feature_processor_lulc.pkl` |
+| California inputs | `data/processed/california_env.csv` | `data/processed/california_env_lulc.csv` |
+
+`04_predict_california.py` sets `USE_LULC = True` and therefore loads the **land-use** column of
+that table. `05_resilience_assessment.py` also folds land use into the stressor directly, at
+`LULC_WEIGHT = 0.25`: the total stressor is (1 − w)·Δ-climate exposure + w·land-use pressure.
+Populations outside NLCD coverage (south of the border) fall back to a climate-only stressor and
+are flagged by `lulc_available`.
+
+Set `USE_LULC = False` in `04_predict_california.py` to reproduce the climate-only results in
+`logs/crossval.log` instead.
+
+Cross-validation of either variant is `03b_crossval.py`.
+
+One caveat visible in both logs: 95% coverage is **0.335–0.397** for He against a nominal 0.95, so
+the model is substantially overconfident. Intervals should be read as relative, not calibrated.
 
 ### Step 4: Predict genetic diversity along the California coast
 
@@ -185,7 +195,7 @@ Places the California He species inside the global cloud of 19,163 populations o
 
 ### Archived
 
-`archive/` holds the earlier scripts and figures that computed the change-based exposure as a *parallel* index alongside the state-based one (`08_delta_exposure_vulnerability.py`, `09_delta_figures.py`, and their `*_delta` outputs). That duplication is gone: exposure is now defined once, in `climate_delta.py`, and the main pipeline figures carry it.
+`archive/` holds the earlier scripts and figures that computed the change-based exposure as a *parallel* index alongside the state-based one. That duplication is gone: exposure is now defined once, in `climate_delta.py`, and the main pipeline figures carry it.
 
 ## Data sources
 
@@ -193,7 +203,8 @@ Places the California He species inside the global cloud of 19,163 populations o
 |--------|-------------|--------|
 | GenDiv v2025-03-31 | Global population genetic diversity (He, Nei's GD) for 1,108 species | https://gendiv.ethz.ch |
 | CaliPopGen | California population genomics dataset | https://calipopgen.org |
-| WorldClim v2.1 | Bioclimatic variables, 10-arc-minute resolution | https://www.worldclim.org |
+| WorldClim v2.1 | Bioclimatic variables — 10 arc-minutes globally, 30 arc-seconds (~1 km) cropped to California | https://www.worldclim.org |
+| NLCD 2021 | National Land Cover Database, 30 m — land-use pressure | https://www.mrlc.gov |
 | Bio-ORACLE v2.2 | Marine environmental layers (surface) | https://www.bio-oracle.org |
 
 ## Hardware
